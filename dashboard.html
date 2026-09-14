@@ -133,7 +133,7 @@
 <script>
 let BUNDLE=null,DATA=null;
 const $=id=>document.getElementById(id);
-const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[c]));
 function isOppEvent(e){return e.type==='Conceded Goal'||(e.type==='Goal'&&e.team==='Opposition')}
 function isOurGoal(e){return e.type==='Goal'&&e.team!=='Opposition'}
 function band(min){const m=Number(min||0);if(m<=22)return'0–22';if(m<=45)return'23–45';if(m<=67)return'46–67';return'68–90+'}
@@ -144,38 +144,38 @@ function sum(a){return a.reduce((x,y)=>x+y,0)}
 function fmt(n,d=2){return Number(n||0).toFixed(d)}
 function aggregateByPlayer(events,field){const map={};events.forEach(e=>{const n=e[field];if(n)map[n]=(map[n]||0)+1});return map}
 function breakdown(events,field){const out={};events.forEach(e=>{const n=e[field];if(!n)return;if(!out[n])out[n]={total:0,comps:{}};out[n].total++;out[n].comps[e.competition]=(out[n].comps[e.competition]||0)+1});return out}
-function renderRank(id,obj,limit=8){const rows=Object.entries(obj).sort((a,b)=>b[1].total-a[1].total||a[0].localeCompare(b[0])).slice(0,limit);const max=rows.length?rows[0][1].total:1;$(id).innerHTML=rows.length?rows.map(([name,x])=>{const segs=Object.entries(x.comps).sort((a,b)=>b[1]-a[1]).map(([c,n])=>`<span class="seg ${compClass(c)}" style="width:${(n/max)*100}%" title="${esc(c)}: ${n}"></span>`).join('');return`<div class="barrow"><div>${esc(name)}</div><div class="track">${segs}</div><div class="value">${x.total}</div></div>`}).join(''):'<div class="empty">No data yet</div>'}
-function renderContrib(id,obj,limit=10){const rows=Object.entries(obj).sort((a,b)=>b[1].total-a[1].total||b[1].goals-a[1].goals||a[0].localeCompare(b[0])).slice(0,limit);const max=rows.length?rows[0][1].total:1;$(id).innerHTML=rows.length?rows.map(([name,x])=>{const goalW=(x.goals/max)*100,assistW=(x.assists/max)*100;return`<div class="barrow"><div>${esc(name)}</div><div class="track"><span class="seg goalContrib" style="width:${goalW}%" title="Goals: ${x.goals}"></span><span class="seg assistContrib" style="width:${assistW}%" title="Assists: ${x.assists}"></span></div><div class="value">${x.total}</div></div>`}).join(''):'<div class="empty">No data yet</div>'}
-function renderTimeline(ms){const mx=Math.max(1,...ms.map(m=>Math.max(m.ourScore,m.oppScore)));$('matchTimeline').innerHTML=ms.length?ms.map(m=>`<div class="gamecol" title="${esc(m.date)} · ${esc(m.opponent)} · ${m.ourScore}-${m.oppScore}"><div class="cols"><div class="gbar" style="height:${(m.ourScore/mx)*145}px"></div><div class="cbar" style="height:${(m.oppScore/mx)*145}px"></div></div><div class="xlabel">${esc(m.opponent)}</div></div>`).join(''):'<div class="empty">No matches yet</div>'}
-function countsByBand(events,pred){const cats=['0–22','23–45','46–67','68–90+'],o={};cats.forEach(c=>o[c]=0);events.filter(pred).forEach(e=>o[band(e.displayMinute)]++);return o}
-function renderDualBands(id,a,b){const cats=Object.keys(a),mx=Math.max(1,...cats.map(c=>Math.max(a[c]||0,b[c]||0)));$(id).innerHTML=cats.map(c=>`<div class="simplecat"><div class="barwrap"><div><div class="barnum">${a[c]||0}</div><div class="b goal" style="height:${((a[c]||0)/mx)*120}px"></div></div><div><div class="barnum">${b[c]||0}</div><div class="b conc" style="height:${((b[c]||0)/mx)*120}px"></div></div></div><div class="catlab">${c}</div></div>`).join('')}
-function renderSingleBars(id,obj){const cats=Object.keys(obj),mx=Math.max(1,...cats.map(c=>obj[c]||0));$(id).innerHTML=cats.map(c=>`<div class="simplecat"><div class="barwrap"><div><div class="barnum">${obj[c]||0}</div><div class="b goal" style="height:${((obj[c]||0)/mx)*120}px;width:28px"></div></div></div><div class="catlab">${esc(c)}</div></div>`).join('')}
-function renderDonut(id,obj){const entries=Object.entries(obj).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);if(!entries.length){$(id).innerHTML='<div class="empty">No data yet</div>';return}const total=sum(entries.map(x=>x[1]));const colors=['#1684ff','#6f8cff','#61c0bf','#f4c95d','#9a72df','#ff7b7d'];let acc=0,parts=[];entries.forEach(([k,v],i)=>{const s=acc/total*360;acc+=v;const e=acc/total*360;parts.push(`${colors[i%colors.length]} ${s}deg ${e}deg`)});$(id).innerHTML=`<div class="donutwrap"><div class="donut" style="background:conic-gradient(${parts.join(',')})"></div><div class="donutlegend">${entries.map(([k,v],i)=>`<div><i class="dot" style="background:${colors[i%colors.length]}"></i>${esc(k||'Other')} <b>${v}</b></div>`).join('')}</div></div>`}
-function zoneKey(z){const m=String(z||'').match(/(\d+)/);return m?Number(m[1]):0}
-function renderPitch(id,events,field,emptyId){const counts={};events.forEach(e=>{const z=zoneKey(e[field]);if(z)counts[z]=(counts[z]||0)+1});const mx=Math.max(1,...Object.values(counts));const pitchSvg=`<svg class="pitchSvg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><rect x="20" y="0" width="60" height="32" fill="none" stroke="rgba(255,255,255,.62)" stroke-width="0.35"/><rect x="37.5" y="0" width="25" height="10.67" fill="none" stroke="rgba(255,255,255,.62)" stroke-width="0.35"/><circle cx="50" cy="21.33" r="0.45" fill="rgba(255,255,255,.82)"/><path d="M 35.78 32 A 17.78 17.78 0 0 0 64.22 32" fill="none" stroke="rgba(255,255,255,.62)" stroke-width="0.35" stroke-linecap="round"/></svg>`;$(id).innerHTML=pitchSvg+Array.from({length:11},(_,i)=>{const z=i+1,n=counts[z]||0,alpha=n?0.18+0.62*(n/mx):0.06;return`<div class="zone z${z}" style="background:rgba(22,132,255,${alpha})" title="Zone ${z}: ${n}"><div class="znum">${n}<small>Z${z}</small></div></div>`}).join('');if(emptyId)$(emptyId).style.display=Object.keys(counts).length?'none':'block'}
-
-function seasonDataWithMatches_(data,matches){
-  return Object.assign({},data,{matches:[...(matches||[])]});
-}
+function renderRank(id,obj){const el=$(id),arr=Object.entries(obj).sort((a,b)=>b[1].total-a[1].total);if(!arr.length){el.innerHTML='<div class="empty">No data yet</div>';return}const max=Math.max(...arr.map(x=>x[1].total),1);el.innerHTML=arr.slice(0,8).map(([name,d])=>`<div class="barrow"><div>${esc(name)}</div><div class="track">${Object.entries(d.comps).map(([c,v])=>`<div class="seg ${compClass(c)}" title="${esc(c)} ${v}" style="width:${100*v/max}%"></div>`).join('')}</div><div class="value">${d.total}</div></div>`).join('')}
+function renderContrib(id,obj,limit=10){const el=$(id),arr=Object.entries(obj).sort((a,b)=>b[1].total-a[1].total).slice(0,limit);if(!arr.length){el.innerHTML='<div class="empty">No data yet</div>';return}const max=Math.max(...arr.map(x=>x[1].total),1);el.innerHTML=arr.map(([name,d])=>`<div class="barrow"><div>${esc(name)}</div><div class="track"><div class="seg goalContrib" style="width:${100*d.goals/max}%"></div><div class="seg assistContrib" style="width:${100*d.assists/max}%"></div></div><div class="value">${d.total}</div></div>`).join('')}
+function renderTimeline(ms){const el=$('matchTimeline');const max=Math.max(1,...ms.flatMap(m=>[m.ourScore||0,m.oppScore||0]));el.innerHTML=ms.length?ms.map(m=>`<div class="gamecol"><div class="cols"><div><div class="barnum">${m.ourScore}</div><div class="gbar" style="height:${140*(m.ourScore||0)/max}px"></div></div><div><div class="barnum">${m.oppScore}</div><div class="cbar" style="height:${140*(m.oppScore||0)/max}px"></div></div></div><div class="xlabel">${esc(m.opponent)}</div></div>`).join(''):'<div class="empty">No matches in this filter</div>'}
+function countsByBand(events,test){const o={'0–22':0,'23–45':0,'46–67':0,'68–90+':0};events.filter(test).forEach(e=>o[band(e.minute)]++);return o}
+function renderDualBands(id,a,b){const el=$(id),ks=Object.keys(a),max=Math.max(1,...ks.flatMap(k=>[a[k],b[k]]));el.innerHTML=ks.map(k=>`<div class="simplecat"><div class="barwrap"><div><div class="barnum">${a[k]}</div><div class="b goal" style="height:${130*a[k]/max}px"></div></div><div><div class="barnum">${b[k]}</div><div class="b conc" style="height:${130*b[k]/max}px"></div></div></div><div class="catlab">${k}</div></div>`).join('')}
+function renderSingleBars(id,obj){const el=$(id),ks=Object.keys(obj),max=Math.max(1,...ks.map(k=>obj[k]));el.innerHTML=ks.map(k=>`<div class="simplecat"><div class="barwrap"><div><div class="barnum">${obj[k]}</div><div class="b goal" style="height:${130*obj[k]/max}px;width:30px"></div></div></div><div class="catlab">${esc(k)}</div></div>`).join('')}
+function renderDonut(id,obj){const el=$(id),entries=Object.entries(obj).filter(x=>x[1]>0);if(!entries.length){el.innerHTML='<div class="empty">No data yet</div>';return}const total=sum(entries.map(x=>x[1])),cols=['#1684ff','#65b3ff','#6f8cff','#61c0bf','#9a72df','#f4c95d'];let p=0,stops=[];entries.forEach(([,v],i)=>{const a=100*p/total;p+=v;const b=100*p/total;stops.push(`${cols[i%cols.length]} ${a}% ${b}%`)});el.innerHTML=`<div class="donutwrap"><div class="donut" style="background:conic-gradient(${stops.join(',')})"></div><div class="donutlegend">${entries.map(([k,v],i)=>`<div><span class="dot" style="background:${cols[i%cols.length]}"></span>${esc(k)}<b>${v}</b></div>`).join('')}</div></div>`}
+function pitchSvg(){return `<svg class="pitchSvg" viewBox="0 0 100 60" preserveAspectRatio="none"><g fill="none" stroke="rgba(255,255,255,.84)" stroke-width=".55" vector-effect="non-scaling-stroke"><rect x=".6" y=".6" width="98.8" height="58.8"/><line x1="50" y1=".6" x2="50" y2="59.4"/><circle cx="50" cy="30" r="7"/><circle cx="50" cy="30" r=".65" fill="rgba(255,255,255,.84)"/><rect x=".6" y="17" width="16" height="26"/><rect x="83.4" y="17" width="16" height="26"/><rect x=".6" y="23" width="6" height="14"/><rect x="93.4" y="23" width="6" height="14"/><circle cx="11" cy="30" r=".55" fill="rgba(255,255,255,.84)"/><circle cx="89" cy="30" r=".55" fill="rgba(255,255,255,.84)"/><path d="M16.6 24.6 A7 7 0 0 1 16.6 35.4"/><path d="M83.4 24.6 A7 7 0 0 0 83.4 35.4"/><path d="M.6 2 A1.6 1.6 0 0 1 2.2 .6"/><path d="M97.8 .6 A1.6 1.6 0 0 1 99.4 2"/><path d="M.6 58 A1.6 1.6 0 0 0 2.2 59.4"/><path d="M97.8 59.4 A1.6 1.6 0 0 0 99.4 58"/></g></svg>`}
+function renderPitch(id,events,field,emptyId){const el=$(id),counts={};events.forEach(e=>{const z=e[field];if(z)counts[z]=(counts[z]||0)+1});const max=Math.max(1,...Object.values(counts));if(emptyId)$(emptyId).style.display=Object.keys(counts).length?'none':'block';el.innerHTML=pitchSvg()+Array.from({length:11},(_,i)=>{const z='Z'+(i+1),v=counts[z]||0,op=.08+(v/max)*.55;return `<div class="zone z${i+1}" style="background:rgba(22,132,255,${v?op:.05})"><div class="znum">${i+1}<small>${v}</small></div></div>`}).join('')}
 
 function seasonSummary(data){
-  const ms=data&&data.matches?data.matches:[];
-  const ev=ms.flatMap(m=>(m.events||[]).map(e=>({...e,competition:m.competition})));
+  if(!data)return{games:0,goals:0,conceded:0,gpg:0,cpg:0,scorers:[],assists:[]};
+  const ms=data.matches||[];
+  const ev=allEvents(ms);
   const goals=ev.filter(isOurGoal),conc=ev.filter(isOppEvent);
-  const scorers={};const assists={};
-  goals.forEach(e=>{
-    if(e.player)scorers[e.player]=(scorers[e.player]||0)+1;
-    if(e.secondaryPlayer)assists[e.secondaryPlayer]=(assists[e.secondaryPlayer]||0)+1;
-  });
-  const top=obj=>Object.entries(obj).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).slice(0,5);
+  const scorerMap=aggregateByPlayer(goals,'player');
+  const assistMap=aggregateByPlayer(goals,'secondaryPlayer');
   return {
     games:ms.length,
     goals:goals.length,
     conceded:conc.length,
     gpg:ms.length?goals.length/ms.length:0,
     cpg:ms.length?conc.length/ms.length:0,
-    scorers:top(scorers),
-    assists:top(assists)
+    scorers:Object.entries(scorerMap).sort((a,b)=>b[1]-a[1]).slice(0,5),
+    assists:Object.entries(assistMap).sort((a,b)=>b[1]-a[1]).slice(0,5)
+  };
+}
+
+function seasonDataWithMatches_(base,matches){
+  return {
+    ...base,
+    matches:matches
   };
 }
 
@@ -298,8 +298,6 @@ function initCurrent(data){
   populateFilters();
   render();
 
-  // Historic data is deliberately loaded second. If the old workbook is
-  // unavailable or slow, the live 2026/27 dashboard still works normally.
   loadJsonp('https://script.google.com/macros/s/AKfycbyHHPOgGsImS9Kvr3SdZiKUGp3ZrbnOoJnIPUckm_Y9hH1K9b_j_Kgmw6UhzVMAyQ0q/exec?api=dashboardHistoric', addHistoricSeason, ()=>{});
 }
 
@@ -324,7 +322,14 @@ function loadJsonp(url,onSuccess,onFailure){
     try{delete window[callback]}catch(e){window[callback]=undefined}
     if(script.parentNode)script.parentNode.removeChild(script);
   };
-  window[callback]=data=>{cleanup();onSuccess(data)};
+  window[callback]=payload=>{
+    cleanup();
+    if(payload&&payload.ok===false){
+      if(onFailure)onFailure(new Error(payload.error||'Could not load data'));
+      return;
+    }
+    onSuccess(payload&&Object.prototype.hasOwnProperty.call(payload,'result')?payload.result:payload);
+  };
   script.onerror=()=>{cleanup();if(onFailure)onFailure(new Error('Could not load data'))};
   script.src=url+(url.includes('?')?'&':'?')+'callback='+encodeURIComponent(callback)+'&_='+Date.now();
   document.head.appendChild(script);
