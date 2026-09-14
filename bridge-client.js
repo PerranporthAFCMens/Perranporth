@@ -10,7 +10,17 @@
     const callback='__pmd_jsonp_'+Date.now()+'_'+(++seq);
     const payload=JSON.stringify({action,args});
     const script=document.createElement('script');
-    const timer=setTimeout(()=>finish(new Error('The data connection timed out. Please try again.')),25000);
+
+    // Player Portal data can legitimately take longer because it builds current
+    // and historic stats. Give those calls extra time instead of treating a slow
+    // Apps Script response as a failed login.
+    const slowActions=new Set([
+      'getPlayerPortalData',
+      'getGhostPlayerPortalData',
+      'getGhostPlayerPortalDataDirect'
+    ]);
+    const timeoutMs=slowActions.has(action)?60000:30000;
+    const timer=setTimeout(()=>finish(new Error('The data connection timed out. Please try again.')),timeoutMs);
 
     function cleanup(){
       clearTimeout(timer);
