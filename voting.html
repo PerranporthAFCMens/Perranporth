@@ -8,7 +8,7 @@
 <div class="card"><h2>Player voting link</h2><input id="link" readonly><button class="btn secondary full" style="margin-top:8px" onclick="copyLink()">Copy voting link</button></div>
 <div class="card"><div class="topline"><div><h2 style="margin-bottom:3px">Voting information</h2><div id="ballots" class="muted">Loading…</div></div></div><div id="results"></div></div></div></div>
 <script>
-const KEY='pmd_admin_auth';let PIN='',D=null,selected='';const $=id=>document.getElementById(id),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[c]));
+const KEY='pmd_admin_auth';let PIN='',D=null,selected='';const $=id=>document.getElementById(id),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const saved=()=>{try{return JSON.parse(localStorage.getItem(KEY)||'null')}catch(e){return null}},save=x=>localStorage.setItem(KEY,JSON.stringify(x)),clear=()=>localStorage.removeItem(KEY);
 async function boot(){const s=saved();if(s?.token&&s.expiresAt>Date.now()){try{if(await pmdCall('verifyPin',s.token)){PIN=s.token;return openApp()}}catch(e){}clear()}setTimeout(()=>$('pin').focus(),40)}
 async function login(){const p=$('pin').value.trim();if(!p)return alert('Enter PIN');try{const s=await pmdCall('createAdminSession',p);PIN=s.token;save(s);openApp()}catch(e){alert(e.message||'Incorrect PIN')}}
