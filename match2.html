@@ -1,0 +1,2481 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <title>Match Centre 2 — TEST</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  
+  <link rel="apple-touch-icon" href="https://images.weserv.nl/?url=www.perranporthafc.co.uk/wp-content/themes/sharkfin-1-4/images/perranporth-afc-large.jpg&amp;output=png&amp;w=180&amp;h=180&amp;fit=contain">
+<meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Perranporth Match Data">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+<style>
+    :root{--blue:#0b5ea8;--dark:#123b5d;--pale:#eaf4fb;--danger:#c62828;--green:#23811c;--bg:#f3f6f8;--line:#d8e0e6;--text:#17212b;--muted:#71808e}
+    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+    body{margin:0;font-family:Arial,sans-serif;background:var(--bg);color:var(--text);-webkit-text-size-adjust:100%}
+    .app{width:100%;max-width:720px;margin:0 auto;padding:max(10px,env(safe-area-inset-top)) 10px max(24px,env(safe-area-inset-bottom))}
+    .card{background:#fff;border-radius:16px;padding:14px;margin-bottom:10px;box-shadow:0 1px 5px #00000010;border:1px solid #e9eef2}
+    .hero{display:flex;align-items:center;gap:12px}.badge{width:54px;height:54px;border-radius:50%;object-fit:cover;background:#fff}
+    h1{font-size:22px;margin:0;color:var(--dark)}h2{font-size:18px;margin:0 0 12px}
+    .muted{color:var(--muted);font-size:13px}.hidden{display:none!important}
+    input,select,textarea{width:100%;min-height:48px;padding:12px 13px;border:1px solid var(--line);border-radius:12px;font-size:16px;background:#fff;color:var(--text)}
+    textarea{min-height:76px;resize:vertical}
+    .btn{border:0;border-radius:12px;min-height:50px;padding:12px 14px;font-size:16px;font-weight:700;background:var(--blue);color:#fff;cursor:pointer}
+    .btn:disabled{opacity:.55;cursor:not-allowed}.btn.secondary{background:#e7edf2;color:#263746}.btn.danger{background:var(--danger)}.btn.green{background:var(--green)}.btn.vote{background:#6b42c1}.btn.full{width:100%}
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:9px}.quick{display:grid;grid-template-columns:1fr 1fr;gap:9px}.quick .btn{min-height:62px}
+    .score{display:flex;justify-content:space-between;align-items:center;gap:10px}.score strong{font-size:30px}
+    .pill{display:inline-block;background:var(--pale);border-radius:20px;padding:5px 9px;font-size:12px;margin:2px}
+    .playerRow{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(110px,.8fr);gap:7px;align-items:center;margin:8px 0;padding-bottom:8px;border-bottom:1px solid #edf1f4}.playerRow select:last-child{grid-column:1/3}
+    .pitch{position:relative;width:100%;aspect-ratio:1.05/1;background:#27851e;border:4px solid white;border-radius:8px;overflow:hidden;margin:10px 0 14px}
+    .zone{position:absolute;border:1px solid #ffffffdd;color:#fff;background:#ffffff18;display:flex;align-items:center;justify-content:center;font-weight:800;cursor:pointer}.zone.sel{outline:4px solid #ffe500;outline-offset:-4px;background:#ffe50080;color:#17212b}
+    .z1{left:37%;top:4%;width:26%;height:11%}.z2{left:37%;top:15%;width:26%;height:10%}.z3{left:37%;top:25%;width:26%;height:10%}.z4{left:20%;top:4%;width:17%;height:31%}.z5{left:63%;top:4%;width:17%;height:31%}.z6{left:0;top:4%;width:20%;height:31%}.z7{left:80%;top:4%;width:20%;height:31%}.z8{left:20%;top:35%;width:60%;height:25%}.z9{left:0;top:35%;width:20%;height:65%}.z10{left:20%;top:60%;width:60%;height:40%}.z11{left:80%;top:35%;width:20%;height:65%}
+    .event{border-top:1px solid #e6ebef;padding:10px 0;font-size:14px}.toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:#17212b;color:#fff;padding:11px 16px;border-radius:20px;display:none;z-index:1000}
+    .podium{display:grid;gap:8px}.podium .row{display:flex;justify-content:space-between;padding:12px;border-radius:12px;background:#f6f8fa;font-weight:700}.dotd{border-left:5px solid #6b42c1;padding-left:10px}.reason{padding:8px 0;border-bottom:1px solid #eee}
+    .pinWrap{min-height:70vh;display:flex;align-items:center;justify-content:center}.pinCard{width:100%;max-width:380px;text-align:center}.matchStatus{display:inline-block;border-radius:999px;padding:5px 10px;font-size:12px;font-weight:800;margin-top:6px}.matchStatus.live{background:#e8f5e9;color:#1b5e20}.matchStatus.half{background:#fff8e1;color:#7a5a00}.matchStatus.full{background:#e7edf2;color:#263746}.modalBack{position:fixed;inset:0;background:#0008;display:flex;align-items:center;justify-content:center;padding:18px;z-index:2000}.modalCard{width:100%;max-width:390px;background:#fff;border-radius:18px;padding:18px;box-shadow:0 14px 50px #0004}.modalCard h2{margin-bottom:8px}.modalActions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:16px}
+    @media(max-width:520px){
+      .app{max-width:none;padding:max(7px,env(safe-area-inset-top)) 7px max(18px,env(safe-area-inset-bottom))}
+      .card{border-radius:13px;padding:11px;margin-bottom:8px}
+      .hero{gap:9px}.badge{width:46px;height:46px}
+      .hero h1{font-size:20px}
+      h2{font-size:17px;margin-bottom:9px}
+      .muted{font-size:12px}
+      input,select,textarea{min-height:46px;padding:10px 11px;border-radius:10px;font-size:16px}
+      textarea{min-height:68px}
+      .btn{min-height:47px;padding:9px 10px;border-radius:10px;font-size:15px}
+      .grid2{gap:7px}
+      .quick{gap:7px}.quick .btn{min-height:55px}
+      .score{gap:7px}.score strong{font-size:27px;white-space:nowrap}
+      .playerRow{grid-template-columns:1fr;gap:5px;margin:6px 0;padding-bottom:6px}
+      .playerRow select:last-child{grid-column:auto}
+      .pitch{aspect-ratio:.95/1;margin:8px 0 10px}
+      .event{padding:8px 0;font-size:13px}
+      .homeActions .btn{min-height:54px}
+      .homeActions{margin-top:8px}
+    .moreMenu{margin-top:10px;border:1px solid #d7e0e8;border-radius:12px;background:#f8fafc;overflow:hidden}
+    .moreMenu summary{list-style:none;cursor:pointer;text-align:center;font-weight:800;padding:13px 14px;color:#17324b}
+    .moreMenu summary::-webkit-details-marker{display:none}
+    .moreMenu summary:after{content:" ▾";font-size:12px;color:#64748b}
+    .moreMenu[open] summary:after{content:" ▴"}
+    .moreMenuBody{padding:0 10px 10px;display:grid;gap:7px}
+      .heroActions{margin-left:auto;display:flex;align-items:center}
+      .logoutBtn{min-height:36px!important;padding:6px 9px!important;font-size:12px!important}.refreshBtn{text-decoration:none;min-height:36px!important;width:38px!important;padding:6px!important;font-size:20px!important;line-height:1!important}.homeBtn{text-decoration:none;min-height:36px!important;padding:6px 10px!important;font-size:12px!important;display:flex;align-items:center;justify-content:center}
+    }
+    @media(max-width:360px){
+      .grid2{grid-template-columns:1fr;gap:6px}
+      .score strong{font-size:24px}
+    }
+  
+    /* Lineup Builder */
+    .lineupToolbar{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;margin:10px 0}
+    .lineupPitch{position:relative;width:100%;aspect-ratio:.68/1;background:#2f9b45;border:3px solid #fff;border-radius:14px;overflow:hidden;box-shadow:inset 0 0 0 1px #1e7933;touch-action:none}
+    .lineupPitch:before{content:"";position:absolute;left:4%;right:4%;top:50%;height:2px;background:#ffffffaa}
+    .lineupPitch:after{content:"";position:absolute;left:50%;top:50%;width:22%;aspect-ratio:1;border:2px solid #ffffffaa;border-radius:50%;transform:translate(-50%,-50%)}
+    .pitchBoxTop,.pitchBoxBottom{position:absolute;left:25%;width:50%;height:16%;border:2px solid #ffffffaa}
+    .pitchBoxTop{top:-2px;border-top:0}.pitchBoxBottom{bottom:-2px;border-bottom:0}
+    .sixTop,.sixBottom{position:absolute;left:38%;width:24%;height:7%;border:2px solid #ffffffaa}
+    .sixTop{top:-2px;border-top:0}.sixBottom{bottom:-2px;border-bottom:0}
+    .lineupMarker{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:2px;z-index:5;touch-action:none;user-select:none;-webkit-user-select:none}
+    .lineupDisc{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#0b5ea8;color:#fff;border:3px solid #fff;box-shadow:0 2px 7px #0005;font-size:12px;font-weight:800}
+    .lineupMarker.gk .lineupDisc{background:#e5a31a;color:#17212b}
+    .lineupName{max-width:78px;padding:2px 5px;border-radius:7px;background:#ffffffee;color:#17212b;font-size:11px;font-weight:800;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:0 1px 4px #0002}
+    .lineupZone{border:2px dashed #cbd6de;border-radius:12px;padding:9px;min-height:64px;background:#f8fafb}
+    .lineupZoneTitle{font-size:13px;font-weight:800;margin-bottom:6px;color:var(--dark)}
+    .lineupChips{display:flex;flex-wrap:wrap;gap:6px}
+    .lineupChip{border:1px solid #cbd6de;border-radius:999px;background:#fff;padding:8px 10px;font-size:13px;font-weight:700;touch-action:none;user-select:none;-webkit-user-select:none}
+    .lineupChip.gk{border-color:#d59b18;background:#fff8dd}
+    .lineupAvailable .lineupChip{cursor:pointer}
+    .lineupDragGhost{position:fixed;z-index:9999;pointer-events:none;transform:translate(-50%,-50%);opacity:.9}
+    .lineupHint{font-size:12px;color:var(--muted);margin:7px 0 10px}
+    .lineupCount{font-size:12px;color:var(--muted);font-weight:700}
+    @media(max-width:520px){
+      .lineupPitch{aspect-ratio:.72/1}
+      .lineupDisc{width:42px;height:42px}
+      .lineupName{font-size:10px;max-width:72px}
+      .lineupToolbar{grid-template-columns:1fr}
+      .lineupToolbar .grid2{grid-template-columns:1fr 1fr}
+    }
+
+    .formationSlot{position:absolute;transform:translate(-50%,-50%);z-index:3;width:58px;height:58px;border:2px dashed #ffffffd9;border-radius:50%;background:#ffffff17;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;font-weight:800;touch-action:none}
+    .formationSlot .slotPlus{font-size:20px;line-height:16px}.formationSlot .slotLabel{font-size:10px;letter-spacing:.2px}
+    .formationSlot.occupied{border-style:solid;background:transparent}
+    .formationSlot.occupied .slotPlus{display:none}
+    .lineupMarker{z-index:6}
+    .playerPickerBack{position:fixed;inset:0;background:#0008;display:flex;align-items:flex-end;justify-content:center;z-index:2500;padding:10px}
+    .playerPickerCard{width:100%;max-width:520px;max-height:78vh;overflow:auto;background:#fff;border-radius:18px 18px 12px 12px;padding:14px}
+    .playerPickerGrid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:10px}
+    .playerPickBtn{min-height:48px;border:1px solid #d7e0e7;background:#fff;border-radius:11px;padding:8px 10px;text-align:left;font-size:14px;font-weight:700}
+    .playerPickBtn.gk{background:#fff8dd;border-color:#d59b18}
+    .slotRole{display:inline-block;font-size:11px;font-weight:800;background:var(--pale);border-radius:999px;padding:4px 8px;margin-top:3px}
+    @media(max-width:520px){
+      .formationSlot{width:52px;height:52px}
+      .playerPickerBack{padding:0}
+      .playerPickerCard{max-height:82vh;border-radius:18px 18px 0 0;padding-bottom:max(16px,env(safe-area-inset-bottom))}
+    }
+
+    .subsSummary{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .subsSummaryBox{background:#f5f8fa;border:1px solid #dfe7ed;border-radius:12px;padding:12px;text-align:center}
+    .subsSummaryBox b{display:block;font-size:24px;color:var(--dark)}
+    .subsPlayer{border:1px solid #e0e7ed;border-radius:12px;margin:9px 0;background:#fff;overflow:hidden}
+    .subsPlayer summary{padding:12px;cursor:pointer;font-weight:800;list-style:none}
+    .subsPlayer summary::-webkit-details-marker{display:none}
+    .subsPlayerBody{padding:0 12px 12px}
+    .subsMatchRow{border-top:1px solid #edf1f4;padding:10px 0}
+    .subsStatus{display:inline-block;border-radius:999px;padding:4px 8px;font-size:12px;font-weight:800}
+        .subsStatus.paid{background:#e5f6e8;color:#19752b}.subsStatus.claimed{background:#fff4d9;color:#8a6410}.subsStatus.owed{background:#fdeaea;color:#a42121}.subsStatus.unknown{background:#eef2f5;color:#61717f}
+    .subsActions{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:7px}
+    .subsActions .btn{min-height:40px;font-size:13px;padding:8px}
+
+
+    .subsViewTabs{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin:12px 0}
+    .subsViewTabs .btn{min-height:42px;padding:8px;font-size:13px}
+    .subsViewTabs .btn.active{background:var(--blue);color:#fff}
+    .subsDebtorRow,.subsMatchHeader{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:11px 0;border-bottom:1px solid #edf1f4}
+    .subsDebtorRow:last-child{border-bottom:0}
+    .subsOwedAmt{font-size:20px;font-weight:800;white-space:nowrap}
+    .subsMini{font-size:12px;color:#6b7b89;margin-top:3px}
+    .subsMatchSummary{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+
+</style>
+  <script src="./bridge-mc2.js"></script>
+  <script src="./button-feedback.js" defer></script>
+</head>
+<body onload="boot()">
+<div style="position:sticky;top:0;z-index:5000;background:#7c2d12;color:#fff;padding:9px 12px;text-align:center;font-weight:900;letter-spacing:.3px;box-shadow:0 2px 8px #0003">
+  MATCH CENTRE 2 — TEST ENVIRONMENT — NOT LIVE DATA
+</div>
+
+<div class="app">
+  <div id="pinView" class="pinWrap">
+    <div class="card pinCard">
+      <h1>Match Centre 2</h1>
+      <div class="muted" style="margin:8px 0 16px">Management access only</div>
+      <input id="pinInput" type="password" inputmode="numeric" placeholder="Enter PIN">
+      <button id="loginBtn" class="btn full" style="margin-top:10px" onclick="login()">Open MC2</button>
+    </div>
+  </div>
+
+  <div id="adminApp" class="hidden">
+    <div class="card hero">
+      <img id="badge" class="badge" alt="Perranporth AFC">
+      <div><h1 id="teamTitle">Perranporth AFC — MC2</h1><div id="season" class="muted"></div></div>
+      <div class="heroActions"><a class="btn secondary homeBtn" href="./" target="_top" aria-label="Home" title="Home">Home</a><a class="btn secondary refreshBtn" href="./match2.html" target="_top" aria-label="Refresh" title="Refresh">↻</a><button class="btn secondary logoutBtn" onclick="logoutAdmin()">Log out</button></div>
+    </div>
+
+    <div id="homeView">
+      <div class="card">
+        <h2>Select match</h2>
+        <select id="matchSelect" onchange="updateSelectedMatchInfo()"></select>
+        <div id="selectedMatchInfo" class="muted" style="margin-top:8px"></div>
+
+        <button class="btn full" onclick="openSelectedMatch()">Open Match</button>
+
+        <div class="grid2 homeActions" style="margin-top:10px">
+          <button class="btn vote" onclick="startTrialMatch()">Trial Match</button>
+          <button class="btn secondary" onclick="showPastMatches()">Past Matches</button>
+        </div>
+
+        <details class="moreMenu">
+          <summary>More</summary>
+          <div class="moreMenuBody">
+            <button class="btn secondary full" onclick="showView('newMatch')">New Match</button>
+            <button class="btn secondary full" onclick="showPlayers()">Manage Players</button>
+            <button class="btn secondary full" onclick="showSeasonStats()">Season Stats</button>
+          </div>
+        </details>
+      </div>
+    </div>
+
+    <div id="ghostModeView" class="hidden">
+      <div class="card">
+        <div class="score">
+          <div>
+            <h2>👻 Ghost Mode</h2>
+            <div class="muted">Open the Player Portal exactly as a player sees it — read only.</div>
+          </div>
+          <button class="btn secondary" onclick="showView('home')">Back</button>
+        </div>
+
+        <select id="ghostPlayerSelect" style="margin-top:14px" onchange="prepareGhostModeLink()">
+          <option value="">Select player...</option>
+        </select>
+
+        <a id="ghostViewLink" class="btn full" style="margin-top:10px;text-decoration:none;text-align:center;opacity:.55;pointer-events:none" href="#" target="_top">Select a player first</a>
+        <div id="ghostLinkStatus" class="muted" style="margin-top:7px"></div>
+
+        <div class="muted" style="margin-top:10px">
+          No player PIN is needed. Ghost Mode cannot submit votes, change a PIN or alter payment status.
+        </div>
+      </div>
+    </div>
+
+    <div id="votingAdminView" class="hidden">
+      <div class="card">
+        <div class="score"><h2>Match Voting</h2><button class="btn secondary" onclick="returnToCurrentMatch()">Back to Match</button></div>
+        <select id="votingMatchSelect"></select>
+        <div id="votingStatus" style="margin:12px 0"></div>
+        <div class="grid2">
+          <button class="btn green" onclick="openVotingForSelected()">Open Voting</button>
+          <button class="btn danger" onclick="closeVotingNow()">Close Voting</button>
+        </div>
+        <button class="btn secondary full" style="margin-top:10px" onclick="showVotingResults()">View selected match results</button>
+
+        <div style="margin-top:16px;padding-top:14px;border-top:1px solid #e6ebef">
+          <div style="font-weight:700;margin-bottom:7px">Player voting link</div>
+          <div class="grid2">
+            <input id="playerVotingLink" readonly onclick="this.select()" aria-label="Player voting link">
+            <button class="btn" onclick="copyVotingLink()">Copy Link</button>
+          </div>
+          <div class="muted" style="margin-top:7px">This is the link to send to the players. It always opens the separate voting page.</div>
+        </div>
+      </div>
+      <div id="votingResults" class="card hidden"></div>
+    </div>
+
+    <div id="pastMatchesView" class="hidden"><div class="card"><div class="score"><h2>Past matches</h2><button class="btn secondary" onclick="showView('home')">Back</button></div><div id="pastMatchesList" class="muted">Loading…</div></div></div>
+    <div id="pastMatchView" class="hidden"><div class="card"><div class="score"><div><b id="pmName"></b><div id="pmMeta" class="muted"></div></div><strong id="pmScore">0 - 0</strong></div><button class="btn secondary full" style="margin-top:10px" onclick="editPastMatchSquad()">Edit Squad / Update Player Stats</button><button class="btn secondary full" style="margin-top:7px" onclick="shareResult(currentPastMatchId)">Share Result</button><button class="btn danger full" style="margin-top:7px" onclick="reopenPastMatch()">Reopen Match / Undo Full Time</button></div><div class="card"><h2>Full timeline</h2><div id="pmEventFeed" class="muted">No events</div></div><button class="btn secondary full" onclick="showPastMatches()">Back</button></div>
+    <div id="statsView" class="hidden"><div class="card"><div class="score"><h2>Season stats</h2><button class="btn secondary" onclick="showView('home')">Back</button></div><div id="statsTable">Loading…</div></div></div>
+
+    <div id="subsTrackerView" class="hidden">
+      <div class="card">
+        <div class="score">
+          <div><h2>Subs Tracker</h2><div class="muted">£3 per game · based on matches played</div></div>
+          <button class="btn secondary" onclick="showView('home')">Back</button>
+        </div>
+        <div id="subsTrackerSummary" style="margin:12px 0"></div>
+
+        <div class="subsViewTabs">
+          <button id="subsTabConfirm" class="btn active" onclick="setSubsView('confirm')">Confirm</button>
+          <button id="subsTabPlayer" class="btn secondary" onclick="setSubsView('player')">By Player</button>
+          <button id="subsTabMatch" class="btn secondary" onclick="setSubsView('match')">By Match</button>
+          <button id="subsTabOwed" class="btn secondary" onclick="setSubsView('owed')">Amounts Owed</button>
+        </div>
+
+        <div id="subsTrackerConfirmView"></div>
+        <div id="subsTrackerPlayerView" class="hidden"></div>
+        <div id="subsTrackerMatchView" class="hidden"></div>
+        <div id="subsTrackerOwedView" class="hidden"></div>
+      </div>
+    </div>
+
+    <div id="newMatchView" class="hidden"><div class="card"><h2>New match</h2><div class="grid2"><input id="nmDate" type="date"><input id="nmKick" type="time"></div><br><input id="nmOpp" placeholder="Opponent"><br><br><div class="grid2"><select id="nmVenue"><option>Home</option><option>Away</option><option>Neutral</option></select><select id="nmComp"><option>League</option><option>GE Cup</option><option>Junior Cup</option><option>Intermediate Cup</option><option>Friendly</option><option>Other</option></select></div><br><div class="grid2"><input id="nmFormation" placeholder="Formation e.g. 4-3-3"><select id="nmCaptain"></select></div><br><textarea id="nmNotes" placeholder="Notes"></textarea><div class="grid2" style="margin-top:10px"><button class="btn green" onclick="createMatch()">Create Match</button><button class="btn secondary" onclick="showView('home')">Cancel</button></div></div></div>
+
+    
+    <div id="lineupView" class="hidden">
+      <div class="card">
+        <div class="score">
+          <div>
+            <h2>Lineup Builder</h2>
+            <div id="lineupMatchLabel" class="muted"></div>
+          </div>
+          <button class="btn secondary" onclick="returnToCurrentMatch()">Back to Match</button>
+        </div>
+
+        <div class="lineupToolbar">
+          <select id="lineupFormation" onchange="applyLineupFormation()">
+            <option>Custom</option>
+            <option>4-3-3</option>
+            <option>4-2-3-1</option>
+            <option>4-1-2-2-1</option>
+            <option>4-4-2</option>
+            <option>3-5-2</option>
+            <option>3-4-3</option>
+          </select>
+          <div class="grid2">
+            <button class="btn secondary" onclick="applyLineupFormation()">Arrange</button>
+            <button class="btn secondary" onclick="clearLineup()">Clear</button>
+          </div>
+        </div>
+
+        <div class="lineupHint">Use this before or during the match. Tap a position to assign a player, move players around the pitch, and update the board as substitutions are made.</div>
+
+        <div id="lineupPitch" class="lineupPitch">
+          <div class="pitchBoxTop"></div><div class="pitchBoxBottom"></div>
+          <div class="sixTop"></div><div class="sixBottom"></div>
+          <div id="lineupPitchPlayers"></div>
+        </div>
+
+        <div id="lineupBench" class="lineupZone" style="margin-top:9px">
+          <div class="score"><div class="lineupZoneTitle">Bench</div><div id="lineupBenchCount" class="lineupCount"></div></div>
+          <div id="lineupBenchPlayers" class="lineupChips"></div>
+        </div>
+
+        <div id="lineupAvailable" class="lineupZone lineupAvailable" style="margin-top:9px">
+          <div class="score"><div class="lineupZoneTitle">Available Players</div><div id="lineupAvailableCount" class="lineupCount"></div></div>
+          <div id="lineupAvailablePlayers" class="lineupChips"></div>
+        </div>
+
+        <button class="btn green full" style="margin-top:10px" onclick="saveLineupBuilder()">Save Lineup</button>
+        <button class="btn secondary full" style="margin-top:7px" onclick="editSelectedSquad()">List Squad View</button>
+      </div>
+    </div>
+
+<div id="squadView" class="hidden">
+      <div class="card">
+        <div class="score">
+          <div><h2 id="squadTitle">Optional Squad</h2><div id="squadMatchLabel" class="muted"></div></div>
+          <button class="btn secondary" onclick="showAddPlayer()">+ Player</button>
+        </div>
+        <button class="btn vote full" style="margin:10px 0 12px" onclick="openLineupBuilder()">⚽ Build / Edit with Lineup Builder</button>
+        <div id="squadList"></div>
+        <button class="btn green full" onclick="saveSquad()">Save Squad</button>
+        <button class="btn secondary full" style="margin-top:7px" onclick="returnToCurrentMatch()">Back to Match</button>
+      </div>
+    </div>
+    <div id="playersView" class="hidden">
+      <div class="card">
+        <div class="score"><h2>Manage Players</h2><button class="btn secondary" onclick="showView('home')">Back</button></div>
+        <button class="btn green full" style="margin-bottom:10px" onclick="showAddPlayer()">+ Add New Player</button>
+        <div class="muted" style="margin-bottom:10px">Tap a player to edit them. Inactive players stay in the sheet but disappear from squads and voting.</div>
+        <input id="playerSearch" placeholder="Search players..." oninput="renderPlayersAdmin()">
+        <div id="playersAdminList" style="margin-top:10px"></div>
+      </div>
+
+      <div id="editPlayerCard" class="card hidden">
+        <div class="score"><h2>Edit Player</h2><button class="btn secondary" onclick="closePlayerEdit()">Cancel</button></div>
+        <input id="epName" placeholder="Player name"><br><br>
+        <div class="grid2">
+          <select id="epPos">
+            <option value="">Default position</option>
+            <option>GK</option><option>RB</option><option>RCB</option><option>CB</option><option>LCB</option><option>LB</option>
+            <option>RWB</option><option>LWB</option><option>DM</option><option>CM</option><option>AM</option>
+            <option>RW</option><option>LW</option><option>ST</option><option>Other</option>
+          </select>
+          <input id="epShirt" type="number" min="1" max="99" placeholder="Shirt no.">
+        </div><br>
+        <label style="display:flex;gap:9px;align-items:center"><input id="epGK" type="checkbox" style="width:auto;min-height:0"> Goalkeeper</label><br>
+        <label style="display:flex;gap:9px;align-items:center"><input id="epActive" type="checkbox" style="width:auto;min-height:0"> Active player</label><br>
+        <input id="epAlias" placeholder="Voting alias (optional)"><br><br>
+        <textarea id="epNotes" placeholder="Notes"></textarea>
+        <button class="btn green full" style="margin-top:10px" onclick="savePlayerEdit()">Save Changes</button>
+      </div>
+    </div>
+
+    <div id="addPlayerView" class="hidden"><div class="card"><h2>Add player</h2><input id="apName" placeholder="Player name"><br><br><div class="grid2"><select id="apPos"><option value="">Default position</option><option>GK</option><option>RB</option><option>RCB</option><option>CB</option><option>LCB</option><option>LB</option><option>RWB</option><option>LWB</option><option>DM</option><option>CM</option><option>AM</option><option>RW</option><option>LW</option><option>ST</option><option>Other</option></select><input id="apShirt" type="number" placeholder="Shirt no."></div><br><label><input id="apGK" type="checkbox" style="width:auto;min-height:0"> Goalkeeper</label><br><br><input id="apAlias" placeholder="Voting alias (optional)"><br><br><textarea id="apNotes" placeholder="Notes"></textarea><div class="grid2" style="margin-top:10px"><button class="btn green" onclick="addPlayer()">Save Player</button><button class="btn secondary" onclick="showPlayers()">Cancel</button></div></div></div>
+
+    <div id="matchView" class="hidden">
+      <div class="card">
+        <div class="score">
+          <div><b id="matchName"></b><div id="matchMeta" class="muted"></div><div id="matchStatus" class="matchStatus live">LIVE</div><div id="squadTrackingNote" class="muted" style="margin-top:5px"></div></div>
+          <strong id="score">0 - 0</strong>
+        </div>
+
+        <div id="trialMatchBanner" class="hidden" style="margin-top:10px;padding:10px;border-radius:10px;background:#fff3cd;color:#6b5200;border:1px solid #f2d675">
+          <b>TRIAL MATCH</b> — nothing from this match is included in your real match lists or season data.
+          <button class="btn danger full" style="margin-top:8px" onclick="endTrialMatch()">End Trial & Delete Everything</button>
+        </div>
+
+        <div id="preMatchActions" class="hidden" style="margin-top:10px">
+          <button class="btn vote full" style="margin-bottom:8px" onclick="openLineupBuilder()">⚽ Lineup Builder</button>
+          <div class="muted" style="margin-bottom:8px">Squad is optional. Set it before kickoff or add it after full time.</div>
+          <div class="grid2">
+            <button class="btn secondary" onclick="editCurrentSquad()">Edit Squad</button>
+            <button class="btn green" onclick="startCurrentMatch()">Start Match</button>
+          </div>
+        </div>
+
+        <div id="liveMatchControls" style="margin-top:10px">
+          <div class="score">
+            <div><div class="muted">Match clock</div><strong id="clockDisplay" style="font-size:26px">00:00</strong><div id="clockStartedAt" class="muted"></div></div>
+            <div class="grid2" style="width:58%"><button id="clockBtn" class="btn green" onclick="toggleClock()">Start</button><button class="btn secondary" onclick="resetClock()">Reset</button></div>
+          </div>
+          <button id="htBtn" class="btn secondary full" style="margin-top:8px" onclick="toggleHalfTime()">Half Time</button>
+          <input id="minute" type="text" placeholder="Minute e.g. 45+2" style="margin-top:10px">
+          <div id="liveAddSquadPlayer" class="hidden" style="margin-top:10px">
+            <div class="muted" style="margin-bottom:6px">Missed someone from the squad?</div>
+            <div class="grid2">
+              <select id="liveAddPlayerSelect"><option value="">Add player to squad...</option></select>
+              <button class="btn secondary" onclick="addPlayerToLiveSquadNow()">Add Player</button>
+            </div>
+          </div>
+          <button class="btn secondary full" style="margin-top:10px" onclick="openLineupBuilder()">Lineup / Subs Board</button>
+          <button class="btn secondary full" style="margin-top:7px" onclick="shareResult(currentMatchId)">Share Result</button>
+        </div>
+      </div>
+      <div id="logEventCard" class="card"><h2>Log event</h2><div class="quick"><button class="btn green" onclick="startEvent('Goal')">⚽ Goal</button><button class="btn danger" onclick="startEvent('Conceded Goal')">🥅 Conceded</button><button class="btn secondary" onclick="startEvent('Substitution')">🔁 Sub</button><button class="btn secondary" onclick="startEvent('Yellow Card')">🟨 Yellow</button><button class="btn danger" onclick="startEvent('Red Card')">🟥 Red</button></div></div>
+      <div id="eventForm" class="card hidden"><div class="score"><h2 id="eventTitle"></h2><button class="btn secondary" onclick="useClockMinute()">Use clock minute</button></div><div id="eventFields"></div><div id="zoneBlock" class="hidden"><div class="muted">Tap the zone</div><div class="pitch" id="pitch"></div></div><div id="originZoneBlock" class="hidden"><div class="muted">Assist / origin zone</div><div class="pitch" id="pitch2"></div></div><textarea id="eventNotes" placeholder="Notes" style="margin-top:8px"></textarea><div class="grid2" style="margin-top:10px"><button id="eventSaveBtn" class="btn green" onclick="saveEvent()">Save Event</button><button class="btn secondary" onclick="cancelEvent()">Cancel</button></div></div>
+      <div class="card"><div class="score"><h2>Recent events</h2><button class="btn secondary" onclick="undoLastEvent()">Undo last</button></div><div id="eventFeed" class="muted">No events yet</div></div>
+      <button id="finishMatchBtn" class="btn danger full" onclick="showFinishMatchConfirm()">Finish Match</button>
+      <button class="btn secondary full" style="margin-top:7px" onclick="showView('home')">Back to Home</button>
+    </div>
+  </div>
+</div>
+
+<div id="lineupPlayerPicker" class="playerPickerBack hidden" onclick="closeLineupPlayerPicker(event)">
+  <div class="playerPickerCard" onclick="event.stopPropagation()">
+    <div class="score">
+      <div>
+        <h2 id="playerPickerTitle">Choose player</h2>
+        <div id="playerPickerRole" class="slotRole"></div>
+      </div>
+      <button class="btn secondary" onclick="closeLineupPlayerPicker()">Close</button>
+    </div>
+    <div id="playerPickerGrid" class="playerPickerGrid"></div>
+    <button id="playerPickerRemove" class="btn danger full hidden" style="margin-top:10px" onclick="removePlayerFromSelectedSlot()">Remove player</button>
+  </div>
+</div>
+
+<div id="finishModal" class="modalBack hidden" role="dialog" aria-modal="true" aria-labelledby="finishModalTitle">
+  <div class="modalCard">
+    <h2 id="finishModalTitle">Finish Match?</h2>
+    <div class="muted">This will stop the shared match clock, mark the match as completed and calculate player minutes.</div>
+    <div class="modalActions">
+      <button class="btn secondary" onclick="hideFinishMatchConfirm()">Cancel</button>
+      <button id="confirmFinishBtn" class="btn danger" onclick="finishMatch()">Finish Match</button>
+    </div>
+  </div>
+</div>
+<div id="toast" class="toast"></div>
+
+<script>
+let PIN='',DATA=null,currentMatchId='',currentPastMatchId='',currentSummary=null,matchTimer=null,clockSyncTimer=null,summarySyncTimer=null,summarySyncBusy=false,draftEvent=null,editingEventId='',selectedZone='',selectedOriginZone='',eventSaveBusy=false;
+let lineupState=[],lineupDrag=null,lineupSuppressClickUntil=0;
+let clockBaseSeconds=0,clockRunningSince=null,clockOnBreak=false,matchHalf=1;
+function call(fn,...args){return pmdCall(fn,...args)}
+function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.style.display='block';setTimeout(()=>t.style.display='none',2300)}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function val(id){const e=document.getElementById(id);return e?e.value:''}
+function exists(id){return !!document.getElementById(id)}
+const ADMIN_AUTH_KEY='pmd_admin_auth_mc2';
+
+async function boot(){
+  const saved=getSavedAdminAuth_();
+  if(saved&&saved.token&&saved.expiresAt>Date.now()){
+    try{
+      if(await call('verifyPin',saved.token)){
+        PIN=saved.token;
+        return openAdmin_();
+      }
+    }catch(e){}
+    clearSavedAdminAuth_();
+  }
+  document.getElementById('pinInput').focus();
+}
+
+async function login(){
+  const entered=val('pinInput').trim();
+  if(!entered)return toast('Enter PIN');
+
+  const btn=document.getElementById('loginBtn');
+  if(window.pmdSetButtonBusy)pmdSetButtonBusy(btn,true,'Opening…');
+  else if(btn){btn.disabled=true;btn.textContent='Opening…'}
+
+  try{
+    const session=await call('createAdminSession',entered);
+    PIN=session.token;
+    saveAdminAuth_(session);
+    await openAdmin_();
+  }catch(e){
+    toast(e.message||'Incorrect PIN');
+  }finally{
+    if(btn && !document.getElementById('pinView').classList.contains('hidden')){
+      if(window.pmdSetButtonBusy)pmdSetButtonBusy(btn,false);
+      else{btn.disabled=false;btn.textContent='Open MC2'}
+    }
+  }
+}
+
+async function openAdmin_(){
+  document.getElementById('pinView').classList.add('hidden');
+  document.getElementById('adminApp').classList.remove('hidden');
+  await initAdmin();
+}
+
+function saveAdminAuth_(session){
+  try{localStorage.setItem(ADMIN_AUTH_KEY,JSON.stringify(session))}catch(e){}
+}
+
+function getSavedAdminAuth_(){
+  try{
+    const raw=localStorage.getItem(ADMIN_AUTH_KEY);
+    if(!raw)return null;
+    const x=JSON.parse(raw);
+    if(!x||!x.token||!x.expiresAt)return null;
+    return x;
+  }catch(e){return null}
+}
+
+function clearSavedAdminAuth_(){
+  try{localStorage.removeItem(ADMIN_AUTH_KEY)}catch(e){}
+}
+
+async function logoutAdmin(){
+  const token=PIN;
+  clearSavedAdminAuth_();
+  clearSession();
+  PIN='';
+  try{if(token)await call('logoutAdminSession',token)}catch(e){}
+  document.getElementById('adminApp').classList.add('hidden');
+  document.getElementById('pinView').classList.remove('hidden');
+  document.getElementById('pinInput').value='';
+  document.getElementById('pinInput').focus();
+}
+async function initAdmin(){
+  DATA=await call('getInitData',PIN);
+  document.getElementById('teamTitle').textContent=DATA.teamName;
+  document.getElementById('season').textContent=(DATA.season||'')+' · TEST DATA';
+  if(DATA.badgeUrl)document.getElementById('badge').src=DATA.badgeUrl;
+  populatePlayers();
+  populateMatches();
+  document.getElementById('nmDate').value=new Date().toISOString().slice(0,10);
+
+  const section='';
+  const directView='';
+
+  if(section==='voting'){
+    await showVotingAdmin();
+    return;
+  }
+  if(section==='subs' || directView==='subs'){
+    await showSubsTracker();
+    return;
+  }
+  if(section==='ghost'){
+    showGhostMode();
+    return;
+  }
+
+  showView('home');
+  await restoreSession();
+}
+// Match-session persistence: remembers which live match you were in so a phone
+// lock / accidental reload returns you to the same match. Admin authentication is
+// separately remembered for 24 hours using a temporary server-issued token.
+function saveSession(){if(!currentMatchId)return;try{localStorage.setItem('pmd_session_mc2',JSON.stringify({matchId:currentMatchId}))}catch(e){}}
+function clearSession(){try{localStorage.removeItem('pmd_session_mc2')}catch(e){}}
+async function restoreSession(){
+  let raw;try{raw=localStorage.getItem('pmd_session_mc2')}catch(e){return}
+  if(!raw)return;
+  let sess;try{sess=JSON.parse(raw)}catch(e){clearSession();return}
+  if(!sess||!sess.matchId)return;
+  try{
+    const squad=await call('getSquad',PIN,sess.matchId);
+    const summary=await call('getMatchSummary',PIN,sess.matchId);
+    if(!squad.length||!summary.match||!summary.match.matchId||summary.match.status==='Completed'){clearSession();return}
+    currentMatchId=sess.matchId;
+    currentSummary=summary;
+    showView('match');
+    renderSummary(currentSummary);
+    applyClockState_(summary.clock);
+    toast('Resumed your match in progress');
+  }catch(e){clearSession()}
+}
+function showView(v){
+  ['homeView','newMatchView','playersView','addPlayerView','lineupView','squadView','matchView','pastMatchesView','pastMatchView','statsView','subsTrackerView','ghostModeView','votingAdminView'].forEach(id=>document.getElementById(id).classList.add('hidden'));
+  document.getElementById(v+'View').classList.remove('hidden');
+  if(v==='match')ensureSummarySync_();else stopSummarySync_();
+}
+function populatePlayers(){document.getElementById('nmCaptain').innerHTML='<option value="">Captain</option>'+DATA.players.map(p=>`<option>${esc(p.name)}</option>`).join('')}
+function populateMatches(){
+  const sel=document.getElementById('matchSelect');
+  const previous=sel.value||currentMatchId||'';
+  const matches=DATA.matches||[];
+  sel.innerHTML='<option value="">Select match...</option>'+matches.map(m=>`<option value="${esc(m.matchId)}">${esc(m.date)} — ${esc(m.opponent)} (${esc(m.venue)})${m.status==='Completed'?' — FT':''}</option>`).join('');
+
+  if(previous&&matches.some(m=>m.matchId===previous)){
+    sel.value=previous;
+  }else{
+    const live=matches.find(m=>m.status==='Live');
+    const scheduled=matches.find(m=>m.status!=='Completed');
+    const fallback=[...matches].reverse().find(m=>m.status==='Completed');
+    const preferred=live||scheduled||fallback;
+    if(preferred)sel.value=preferred.matchId;
+  }
+  updateSelectedMatchInfo();
+}
+
+function selectedMatch_(){
+  const id=val('matchSelect');
+  return (DATA.matches||[]).find(m=>m.matchId===id)||null;
+}
+
+function updateSelectedMatchInfo(){
+  const m=selectedMatch_();
+  const info=document.getElementById('selectedMatchInfo');
+  const startBtn=document.getElementById('homeStartMatchBtn');
+  if(!m){
+    if(info)info.textContent='';
+    if(startBtn)startBtn.disabled=true;
+    return;
+  }
+  if(info){
+    const status=m.status||'Scheduled';
+    info.innerHTML=`<span class="pill">${esc(status.toUpperCase())}</span> ${esc(m.competition||'')} ${m.kickoff?'• '+esc(m.kickoff):''}`;
+  }
+  if(startBtn){
+    startBtn.disabled=m.status==='Completed'||m.status==='Live';
+    startBtn.textContent=m.status==='Live'?'Match Live':(m.status==='Completed'?'Match Finished':'Start Match');
+  }
+}
+
+let editingPlayerName='';
+
+function showGhostMode(){
+  showView('ghostMode');
+  const sel=document.getElementById('ghostPlayerSelect');
+  const players=[...(DATA.players||[])].sort((a,b)=>a.name.localeCompare(b.name));
+  sel.innerHTML='<option value="">Select player...</option>'+
+    players.map(p=>`<option value="${esc(p.name)}">${esc(p.name)}</option>`).join('');
+
+  const link=document.getElementById('ghostViewLink');
+  link.href='#';
+  link.textContent='Select a player first';
+  link.style.opacity='.55';
+  link.style.pointerEvents='none';
+  document.getElementById('ghostLinkStatus').textContent='';
+}
+
+async function prepareGhostModeLink(){
+  const player=val('ghostPlayerSelect');
+  const link=document.getElementById('ghostViewLink');
+  const status=document.getElementById('ghostLinkStatus');
+
+  link.href='#';
+  link.style.opacity='.55';
+  link.style.pointerEvents='none';
+
+  if(!player){
+    link.textContent='Select a player first';
+    status.textContent='';
+    return;
+  }
+
+  link.textContent='Ghost Mode unavailable in MC2';
+  status.textContent='MC2 is isolated from the live Player Portal. Use the normal Ghost Mode from the Control Centre.';
+}
+
+function showPlayers(){
+  closePlayerEdit();
+  showView('players');
+  document.getElementById('playerSearch').value='';
+  renderPlayersAdmin();
+}
+
+function renderPlayersAdmin(){
+  const q=val('playerSearch').trim().toLowerCase();
+  const rows=[...(DATA.allPlayers||DATA.players)]
+    .sort((a,b)=>{
+      if(a.active!==b.active)return a.active?-1:1;
+      return a.name.localeCompare(b.name);
+    })
+    .filter(p =>
+      !q ||
+      p.name.toLowerCase().includes(q) ||
+      String(p.alias||'').toLowerCase().includes(q) ||
+      String(p.position||'').toLowerCase().includes(q)
+    );
+
+  const el=document.getElementById('playersAdminList');
+  if(!rows.length){
+    el.innerHTML='<div class="muted">No players found.</div>';
+    return;
+  }
+
+  el.innerHTML=rows.map(p=>`
+    <div class="event" style="cursor:pointer;padding:12px 4px" onclick="editPlayer('${escJs(p.name)}')">
+      <div class="score">
+        <div>
+          <b>${esc(p.name)}</b>
+          <div class="muted">${p.active?'Active':'Inactive'}${p.position?' • '+esc(p.position):''}${p.alias?' • Voting: '+esc(p.alias):''}${p.goalkeeper?' • GK':''}</div>
+        </div>
+        <span class="pill">${p.active?'ACTIVE':'INACTIVE'}</span>
+      </div>
+    </div>`).join('');
+}
+
+function escJs(s){
+  return String(s??'').replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\r?\n/g,' ');
+}
+
+function editPlayer(name){
+  const p=(DATA.allPlayers||DATA.players).find(x=>x.name===name);
+  if(!p)return toast('Player not found');
+
+  editingPlayerName=p.name;
+  document.getElementById('epName').value=p.name||'';
+  document.getElementById('epPos').value=p.position||'';
+  document.getElementById('epShirt').value=p.shirtNo||'';
+  document.getElementById('epGK').checked=!!p.goalkeeper;
+  document.getElementById('epActive').checked=!!p.active;
+  document.getElementById('epAlias').value=p.alias||'';
+  document.getElementById('epNotes').value=p.notes||'';
+  document.getElementById('editPlayerCard').classList.remove('hidden');
+  document.getElementById('editPlayerCard').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function closePlayerEdit(){
+  editingPlayerName='';
+  const card=document.getElementById('editPlayerCard');
+  if(card)card.classList.add('hidden');
+}
+
+async function savePlayerEdit(){
+  if(!editingPlayerName)return;
+
+  const data={
+    name:val('epName').trim(),
+    position:val('epPos'),
+    shirtNo:val('epShirt'),
+    goalkeeper:document.getElementById('epGK').checked,
+    active:document.getElementById('epActive').checked,
+    alias:val('epAlias').trim(),
+    notes:val('epNotes')
+  };
+
+  if(!data.name)return toast('Enter a player name');
+
+  await call('updatePlayer',PIN,editingPlayerName,data);
+  DATA.allPlayers=await call('getAllPlayersForAdmin',PIN);
+  DATA.players=DATA.allPlayers.filter(p=>p.active);
+  populatePlayers();
+  closePlayerEdit();
+  renderPlayersAdmin();
+  toast('Player updated');
+}
+
+function showAddPlayer(){['apName','apShirt','apNotes','apAlias'].forEach(id=>document.getElementById(id).value='');document.getElementById('apPos').value='';document.getElementById('apGK').checked=false;showView('addPlayer')}
+async function addPlayer(){const data={name:val('apName').trim(),position:val('apPos'),shirtNo:val('apShirt'),goalkeeper:document.getElementById('apGK').checked,notes:val('apNotes'),alias:val('apAlias')};if(!data.name)return toast('Enter a player name');const p=await call('addPlayer',PIN,data);DATA.allPlayers=await call('getAllPlayersForAdmin',PIN);DATA.players=DATA.allPlayers.filter(x=>x.active);populatePlayers();toast(p.name+' added');showPlayers()}
+
+async function startTrialMatch(){
+  if(!confirm('Start a temporary trial match? Any previous trial match will be deleted first.')) return;
+
+  try{
+    currentMatchId=await call('createTrialMatch',PIN);
+    currentSummary=await call('getMatchSummary',PIN,currentMatchId);
+    showView('match');
+    renderSummary(currentSummary);
+    applyClockState_(currentSummary.clock);
+    toast('Trial match ready');
+  }catch(e){}
+}
+
+async function endTrialMatch(){
+  if(!currentMatchId)return;
+  if(!confirm('Delete this trial match and ALL of its events, lineup, votes, subs and player data?'))return;
+
+  try{
+    await call('deleteTrialMatch',PIN,currentMatchId);
+    currentMatchId='';
+    currentSummary=null;
+    DATA.matches=await call('getMatches',PIN,true);
+    populateMatches();
+    showView('home');
+    toast('Trial match deleted');
+  }catch(e){}
+}
+
+async function createMatch(){
+  const d={date:val('nmDate'),kickoff:val('nmKick'),opponent:val('nmOpp'),venue:val('nmVenue'),competition:val('nmComp'),formation:val('nmFormation'),captain:val('nmCaptain'),notes:val('nmNotes')};
+  if(!d.opponent)return toast('Enter an opponent');
+
+  currentMatchId=await call('createMatch',PIN,d);
+  DATA.matches=await call('getMatches',PIN,true);
+  populateMatches();
+  document.getElementById('matchSelect').value=currentMatchId;
+  updateSelectedMatchInfo();
+
+  // Go straight into the match. Squad/lineup can be added whenever wanted.
+  showView('match');
+  await refreshSummary();
+  saveSession();
+  toast('Match created');
+}
+
+
+const LINEUP_PRESETS={
+  '4-3-3':[
+    {label:'GK',x:50,y:92},
+    {label:'LB',x:14,y:75},{label:'LCB',x:38,y:78},{label:'RCB',x:62,y:78},{label:'RB',x:86,y:75},
+    {label:'LCM',x:25,y:55},{label:'CM',x:50,y:59},{label:'RCM',x:75,y:55},
+    {label:'LW',x:18,y:28},{label:'ST',x:50,y:20},{label:'RW',x:82,y:28}
+  ],
+  '4-2-3-1':[
+    {label:'GK',x:50,y:92},
+    {label:'LB',x:14,y:75},{label:'LCB',x:38,y:78},{label:'RCB',x:62,y:78},{label:'RB',x:86,y:75},
+    {label:'LDM',x:36,y:59},{label:'RDM',x:64,y:59},
+    {label:'LW',x:18,y:39},{label:'CAM',x:50,y:42},{label:'RW',x:82,y:39},
+    {label:'ST',x:50,y:19}
+  ],
+  '4-1-2-2-1':[
+    {label:'GK',x:50,y:92},
+    {label:'LB',x:14,y:75},{label:'LCB',x:38,y:78},{label:'RCB',x:62,y:78},{label:'RB',x:86,y:75},
+    {label:'DM',x:50,y:60},
+    {label:'LAM',x:36,y:43},{label:'RAM',x:64,y:43},
+    {label:'LW',x:18,y:28},{label:'RW',x:82,y:28},
+    {label:'9',x:50,y:18}
+  ],
+  '4-4-2':[
+    {label:'GK',x:50,y:92},
+    {label:'LB',x:14,y:75},{label:'LCB',x:38,y:78},{label:'RCB',x:62,y:78},{label:'RB',x:86,y:75},
+    {label:'LM',x:16,y:50},{label:'LCM',x:39,y:55},{label:'RCM',x:61,y:55},{label:'RM',x:84,y:50},
+    {label:'LST',x:38,y:24},{label:'RST',x:62,y:24}
+  ],
+  '3-5-2':[
+    {label:'GK',x:50,y:92},
+    {label:'LCB',x:25,y:76},{label:'CB',x:50,y:80},{label:'RCB',x:75,y:76},
+    {label:'LWB',x:10,y:52},{label:'LCM',x:32,y:57},{label:'CM',x:50,y:49},{label:'RCM',x:68,y:57},{label:'RWB',x:90,y:52},
+    {label:'LST',x:38,y:23},{label:'RST',x:62,y:23}
+  ],
+  '3-4-3':[
+    {label:'GK',x:50,y:92},
+    {label:'LCB',x:25,y:76},{label:'CB',x:50,y:80},{label:'RCB',x:75,y:76},
+    {label:'LM',x:15,y:52},{label:'LCM',x:39,y:57},{label:'RCM',x:61,y:57},{label:'RM',x:85,y:52},
+    {label:'LW',x:18,y:27},{label:'ST',x:50,y:20},{label:'RW',x:82,y:27}
+  ],
+  'Custom':[
+    {label:'1',x:50,y:92},
+    {label:'2',x:14,y:75},{label:'3',x:38,y:78},{label:'4',x:62,y:78},{label:'5',x:86,y:75},
+    {label:'6',x:25,y:55},{label:'7',x:50,y:59},{label:'8',x:75,y:55},
+    {label:'9',x:18,y:28},{label:'10',x:50,y:20},{label:'11',x:82,y:28}
+  ]
+};
+let selectedLineupSlot=null;
+
+function lineupPlayerMeta_(name){
+  return (DATA.players||[]).find(p=>p.name===name)||{name:name,position:'',goalkeeper:false};
+}
+function activeSquadNames_(){
+  const summary=currentSummary||{};
+  const squad=summary.squad||[];
+  return squad.map(x=>typeof x==='string'?x:(x.player||x.name||'')).filter(Boolean);
+}
+
+function lineupAssignedNames_(){
+  return lineupState.map(x=>x.player).filter(Boolean);
+}
+
+function buildLineupFromSummary_(){
+  const summary=currentSummary||{};
+  const saved=summary.lineup||summary.lineupPositions||[];
+  const names=activeSquadNames_();
+
+  lineupState=[];
+
+  if(Array.isArray(saved)&&saved.length){
+    lineupState=saved.map(x=>({
+      player:x.player||x.name||'',
+      x:Number(x.x)||50,
+      y:Number(x.y)||50,
+      label:x.label||x.role||'',
+      bench:!!x.bench
+    })).filter(x=>x.player);
+    return;
+  }
+
+  const preset=LINEUP_PRESETS[val('lineupFormation')]||LINEUP_PRESETS.Custom;
+  names.slice(0,11).forEach((name,i)=>{
+    const slot=preset[i]||{x:50,y:50,label:''};
+    lineupState.push({player:name,x:slot.x,y:slot.y,label:slot.label,bench:false});
+  });
+
+  names.slice(11).forEach(name=>{
+    lineupState.push({player:name,x:50,y:50,label:'SUB',bench:true});
+  });
+}
+
+function renderLineupBuilder(){
+  const pitch=document.getElementById('lineupPitchPlayers');
+  const bench=document.getElementById('lineupBenchPlayers');
+  const available=document.getElementById('lineupAvailablePlayers');
+
+  const assigned=new Set(lineupAssignedNames_());
+  const squadNames=activeSquadNames_();
+  const availableNames=(DATA.players||[]).map(p=>p.name).filter(n=>!assigned.has(n)&&!squadNames.includes(n));
+
+  pitch.innerHTML='';
+  bench.innerHTML='';
+  available.innerHTML='';
+
+  const preset=LINEUP_PRESETS[val('lineupFormation')]||LINEUP_PRESETS.Custom;
+  const pitchPlayers=lineupState.filter(x=>!x.bench);
+
+  preset.forEach((slot,i)=>{
+    const occupied=pitchPlayers[i]||null;
+    const el=document.createElement('div');
+    el.className='formationSlot'+(occupied?' occupied':'');
+    el.style.left=slot.x+'%';
+    el.style.top=slot.y+'%';
+    el.dataset.slotIndex=i;
+    el.innerHTML=occupied?'':`<div class="slotPlus">+</div><div class="slotLabel">${esc(slot.label)}</div>`;
+    el.onclick=()=>openLineupPlayerPicker(i,false,slot.label);
+
+    if(occupied){
+      const marker=createLineupMarker_(occupied,i);
+      el.appendChild(marker);
+    }
+    pitch.appendChild(el);
+  });
+
+  const benchPlayers=lineupState.filter(x=>x.bench);
+  benchPlayers.forEach((p,i)=>{
+    const meta=lineupPlayerMeta_(p.player);
+    const chip=document.createElement('button');
+    chip.className='lineupChip'+(meta.goalkeeper?' gk':'');
+    chip.textContent=p.player;
+    chip.onclick=()=>openLineupPlayerPicker(i,true,'SUB');
+    bench.appendChild(chip);
+  });
+
+  availableNames.forEach(name=>{
+    const meta=lineupPlayerMeta_(name);
+    const chip=document.createElement('button');
+    chip.className='lineupChip'+(meta.goalkeeper?' gk':'');
+    chip.textContent=name;
+    chip.onclick=()=>addAvailablePlayerToBench_(name);
+    available.appendChild(chip);
+  });
+
+  document.getElementById('lineupBenchCount').textContent=benchPlayers.length+' players';
+  document.getElementById('lineupAvailableCount').textContent=availableNames.length+' available';
+}
+
+function createLineupMarker_(entry,index){
+  const meta=lineupPlayerMeta_(entry.player);
+  const el=document.createElement('div');
+  el.className='lineupMarker'+(meta.goalkeeper?' gk':'');
+  el.innerHTML=`<div class="lineupDisc">${esc(meta.shirtNo||'')}</div><div class="lineupName">${esc(entry.player)}</div>`;
+  el.onclick=(e)=>{
+    e.stopPropagation();
+    if(Date.now()<lineupSuppressClickUntil)return;
+    openLineupPlayerPicker(index,false,entry.label||'');
+  };
+  attachLineupDrag_(el,index);
+  return el;
+}
+
+function openLineupPlayerPicker(index,isBench,role){
+  selectedLineupSlot={index,isBench,role:role||''};
+
+  const current=isBench
+    ? lineupState.filter(x=>x.bench)[index]
+    : lineupState.filter(x=>!x.bench)[index];
+
+  document.getElementById('playerPickerTitle').textContent=current&&current.player?'Change player':'Choose player';
+  document.getElementById('playerPickerRole').textContent=role||'Position';
+
+  const assigned=new Set(lineupAssignedNames_());
+  const currentName=current&&current.player?current.player:'';
+  if(currentName)assigned.delete(currentName);
+
+  const players=[...(DATA.players||[])].filter(p=>!assigned.has(p.name));
+
+  document.getElementById('playerPickerGrid').innerHTML=players.map(p=>`
+    <button class="playerPickBtn${p.goalkeeper?' gk':''}" onclick="choosePlayerForSelectedSlot('${escJs(p.name)}')">
+      ${esc(p.name)}
+      <div class="muted">${esc(p.position||'')}${p.shirtNo?' • #'+esc(p.shirtNo):''}</div>
+    </button>
+  `).join('');
+
+  const remove=document.getElementById('playerPickerRemove');
+  remove.classList.toggle('hidden',!currentName);
+
+  document.getElementById('lineupPlayerPicker').classList.remove('hidden');
+}
+
+function closeLineupPlayerPicker(e){
+  if(e&&e.target!==e.currentTarget)return;
+  document.getElementById('lineupPlayerPicker').classList.add('hidden');
+  selectedLineupSlot=null;
+}
+
+function choosePlayerForSelectedSlot(name){
+  if(!selectedLineupSlot)return;
+
+  const {index,isBench,role}=selectedLineupSlot;
+  if(isBench){
+    const bench=lineupState.filter(x=>x.bench);
+    const target=bench[index];
+    if(target)target.player=name;
+    else lineupState.push({player:name,x:50,y:50,label:'SUB',bench:true});
+  }else{
+    const pitch=lineupState.filter(x=>!x.bench);
+    const target=pitch[index];
+    const preset=LINEUP_PRESETS[val('lineupFormation')]||LINEUP_PRESETS.Custom;
+    const slot=preset[index]||{x:50,y:50,label:role||''};
+    if(target){
+      target.player=name;
+      target.x=slot.x;
+      target.y=slot.y;
+      target.label=role||slot.label||'';
+    }else{
+      lineupState.push({
+        player:name,
+        x:slot.x,
+        y:slot.y,
+        label:role||slot.label||'',
+        bench:false
+      });
+    }
+  }
+
+  closeLineupPlayerPicker();
+  renderLineupBuilder();
+}
+
+function removePlayerFromSelectedSlot(){
+  if(!selectedLineupSlot)return;
+
+  const {index,isBench}=selectedLineupSlot;
+  if(isBench){
+    const benchIndexes=lineupState.map((x,i)=>x.bench?i:-1).filter(i=>i>=0);
+    const realIndex=benchIndexes[index];
+    if(realIndex!=null)lineupState.splice(realIndex,1);
+  }else{
+    const pitchIndexes=lineupState.map((x,i)=>!x.bench?i:-1).filter(i=>i>=0);
+    const realIndex=pitchIndexes[index];
+    if(realIndex!=null)lineupState.splice(realIndex,1);
+  }
+
+  closeLineupPlayerPicker();
+  renderLineupBuilder();
+}
+
+function addAvailablePlayerToBench_(name){
+  if(lineupAssignedNames_().includes(name))return;
+  lineupState.push({player:name,x:50,y:50,label:'SUB',bench:true});
+  renderLineupBuilder();
+}
+
+function attachLineupDrag_(el,index){
+  let active=false,startX=0,startY=0;
+
+  const move=e=>{
+    if(!active)return;
+    const touch=e.touches?e.touches[0]:e;
+    const pitch=document.getElementById('lineupPitch');
+    const r=pitch.getBoundingClientRect();
+
+    const x=Math.max(4,Math.min(96,((touch.clientX-r.left)/r.width)*100));
+    const y=Math.max(4,Math.min(96,((touch.clientY-r.top)/r.height)*100));
+
+    el.parentElement.style.left=x+'%';
+    el.parentElement.style.top=y+'%';
+
+    const pitchEntries=lineupState.filter(x=>!x.bench);
+    const entry=pitchEntries[index];
+    if(entry){
+      entry.x=x;
+      entry.y=y;
+    }
+
+    if(e.cancelable)e.preventDefault();
+  };
+
+  const up=()=>{
+    if(!active)return;
+    active=false;
+    lineupSuppressClickUntil=Date.now()+350;
+    document.removeEventListener('mousemove',move);
+    document.removeEventListener('mouseup',up);
+    document.removeEventListener('touchmove',move);
+    document.removeEventListener('touchend',up);
+  };
+
+  const down=e=>{
+    const touch=e.touches?e.touches[0]:e;
+    startX=touch.clientX;
+    startY=touch.clientY;
+    active=true;
+
+    document.addEventListener('mousemove',move);
+    document.addEventListener('mouseup',up);
+    document.addEventListener('touchmove',move,{passive:false});
+    document.addEventListener('touchend',up);
+
+    if(e.cancelable)e.preventDefault();
+  };
+
+  el.addEventListener('mousedown',down);
+  el.addEventListener('touchstart',down,{passive:false});
+}
+
+async function openLineupBuilder(){
+  if(!currentMatchId)return toast('Open a match first');
+
+  try{
+    currentSummary=await call('getMatchSummary',PIN,currentMatchId);
+    const m=currentSummary.match||{};
+    document.getElementById('lineupMatchLabel').textContent=
+      `${m.date||''} ${m.opponent?'• '+m.opponent:''}`;
+
+    const formation=m.formation||'Custom';
+    document.getElementById('lineupFormation').value=
+      LINEUP_PRESETS[formation]?formation:'Custom';
+
+    buildLineupFromSummary_();
+    renderLineupBuilder();
+    showView('lineup');
+  }catch(e){
+    toast(e.message||'Could not load lineup');
+  }
+}
+
+function applyLineupFormation(){
+  const formation=val('lineupFormation');
+  const preset=LINEUP_PRESETS[formation]||LINEUP_PRESETS.Custom;
+  const pitchPlayers=lineupState.filter(x=>!x.bench);
+
+  pitchPlayers.forEach((p,i)=>{
+    const slot=preset[i]||{x:50,y:50,label:''};
+    p.x=slot.x;
+    p.y=slot.y;
+    p.label=slot.label||'';
+  });
+
+  renderLineupBuilder();
+}
+
+function clearLineup(){
+  if(!confirm('Clear the current lineup board?'))return;
+  lineupState=[];
+  renderLineupBuilder();
+}
+
+async function saveLineupBuilder(){
+  if(!currentMatchId)return;
+
+  const payload=lineupState.map(x=>({
+    player:x.player,
+    x:Number(x.x)||50,
+    y:Number(x.y)||50,
+    role:x.label||'',
+    bench:!!x.bench
+  }));
+
+  try{
+    await call('saveLineupBuilder',PIN,currentMatchId,val('lineupFormation'),payload);
+    currentSummary=await call('getMatchSummary',PIN,currentMatchId);
+    toast('Lineup saved');
+    showView('match');
+    renderSummary(currentSummary);
+  }catch(e){
+    toast(e.message||'Could not save lineup');
+  }
+}
+
+function editSelectedSquad(){
+  showView('squad');
+  loadSquadEditor_();
+}
+
+async function editCurrentSquad(){
+  showView('squad');
+  loadSquadEditor_();
+}
+
+async function loadSquadEditor_(){
+  if(!currentMatchId)return;
+  const m=(DATA.matches||[]).find(x=>x.matchId===currentMatchId)||
+          (currentSummary&&currentSummary.match)||{};
+  document.getElementById('squadMatchLabel').textContent=
+    `${m.date||''} ${m.opponent?'• '+m.opponent:''}`;
+
+  const squad=await call('getSquad',PIN,currentMatchId);
+  const squadMap=new Map(
+    squad.map(x=>[
+      typeof x==='string'?x:(x.player||x.name||''),
+      x
+    ])
+  );
+
+  const players=DATA.players||[];
+  document.getElementById('squadList').innerHTML=players.map(p=>{
+    const s=squadMap.get(p.name)||{};
+    const selected=!!squadMap.get(p.name);
+
+    return `
+      <div class="playerRow">
+        <label style="display:flex;align-items:center;gap:9px">
+          <input
+            type="checkbox"
+            class="squadSelect"
+            data-player="${esc(p.name)}"
+            ${selected?'checked':''}
+            style="width:auto;min-height:0"
+          >
+          <b>${esc(p.name)}</b>
+        </label>
+
+        <select class="squadStatus" data-player="${esc(p.name)}">
+          <option value="Starter" ${s.status==='Starter'?'selected':''}>Starter</option>
+          <option value="Sub" ${s.status==='Sub'?'selected':''}>Sub</option>
+          <option value="Unused" ${s.status==='Unused'?'selected':''}>Unused</option>
+        </select>
+
+        <select class="squadPosition" data-player="${esc(p.name)}">
+          <option value="">Position</option>
+          ${[
+            'GK','RB','RCB','CB','LCB','LB','RWB','LWB',
+            'DM','CM','AM','RW','LW','ST','Other'
+          ].map(pos=>`<option ${s.position===pos?'selected':''}>${pos}</option>`).join('')}
+        </select>
+      </div>
+    `;
+  }).join('');
+}
+
+async function saveSquad(){
+  const checks=[...document.querySelectorAll('.squadSelect:checked')];
+
+  const rows=checks.map(ch=>{
+    const player=ch.dataset.player;
+    const status=document.querySelector(`.squadStatus[data-player="${CSS.escape(player)}"]`)?.value||'Sub';
+    const position=document.querySelector(`.squadPosition[data-player="${CSS.escape(player)}"]`)?.value||'';
+
+    return {player,status,position};
+  });
+
+  try{
+    await call('saveSquad',PIN,currentMatchId,rows);
+    currentSummary=await call('getMatchSummary',PIN,currentMatchId);
+    toast('Squad saved');
+    showView('match');
+    renderSummary(currentSummary);
+  }catch(e){
+    toast(e.message||'Could not save squad');
+  }
+}
+
+async function openSelectedMatch(){
+  const id=val('matchSelect');
+  if(!id)return toast('Select a match');
+
+  currentMatchId=id;
+  currentSummary=await call('getMatchSummary',PIN,id);
+  showView('match');
+  renderSummary(currentSummary);
+  applyClockState_(currentSummary.clock);
+
+  const status=currentSummary.match&&currentSummary.match.status;
+  if(status!=='Completed')saveSession();
+  else clearSession();
+}
+
+async function startCurrentMatch(){
+  if(!currentMatchId)return;
+  try{
+    await call('startMatch',PIN,currentMatchId);
+    currentSummary=await call('getMatchSummary',PIN,currentMatchId);
+    renderSummary(currentSummary);
+    applyClockState_(currentSummary.clock);
+    saveSession();
+    toast('Match started');
+  }catch(e){
+    toast(e.message||'Could not start match');
+  }
+}
+
+async function refreshSummary(){
+  if(!currentMatchId)return;
+  currentSummary=await call('getMatchSummary',PIN,currentMatchId);
+  renderSummary(currentSummary);
+  applyClockState_(currentSummary.clock);
+}
+
+function ensureSummarySync_(){
+  stopSummarySync_();
+  summarySyncTimer=setInterval(async()=>{
+    if(summarySyncBusy||!currentMatchId)return;
+    summarySyncBusy=true;
+    try{
+      const fresh=await call('getMatchSummary',PIN,currentMatchId);
+      currentSummary=fresh;
+      renderSummary(fresh);
+      applyClockState_(fresh.clock);
+    }catch(e){}
+    finally{summarySyncBusy=false}
+  },30000);
+}
+
+function stopSummarySync_(){
+  if(summarySyncTimer){
+    clearInterval(summarySyncTimer);
+    summarySyncTimer=null;
+  }
+}
+
+function renderSummary(s){
+  if(!s||!s.match)return;
+  const m=s.match;
+
+  document.getElementById('matchName').textContent=
+    `${m.venue==='Away'?m.opponent:DATA.teamName} v ${m.venue==='Away'?DATA.teamName:m.opponent}`;
+  document.getElementById('matchMeta').textContent=
+    `${m.date||''}${m.kickoff?' • '+m.kickoff:''}${m.competition?' • '+m.competition:''}`;
+
+  document.getElementById('score').textContent=
+    `${s.scoreFor??0} - ${s.scoreAgainst??0}`;
+
+  const statusEl=document.getElementById('matchStatus');
+  const status=m.status||'Scheduled';
+
+  statusEl.textContent=
+    status==='Completed'?'FULL TIME':
+    status==='Live'?(s.clock&&s.clock.onBreak?'HALF TIME':'LIVE'):
+    'PRE-MATCH';
+
+  statusEl.className=
+    'matchStatus '+
+    (status==='Completed'?'full':(s.clock&&s.clock.onBreak?'half':'live'));
+
+  document.getElementById('preMatchActions').classList.toggle('hidden',status!=='Scheduled');
+  document.getElementById('liveMatchControls').classList.toggle('hidden',status==='Completed');
+  document.getElementById('logEventCard').classList.toggle('hidden',status!=='Live');
+  document.getElementById('finishMatchBtn').classList.toggle('hidden',status!=='Live');
+
+  const isTrial=!!m.isTrial||/^TRIAL/i.test(String(m.competition||''));
+  document.getElementById('trialMatchBanner').classList.toggle('hidden',!isTrial);
+
+  const squad=s.squad||[];
+  const squadNote=document.getElementById('squadTrackingNote');
+  squadNote.textContent=squad.length
+    ? `${squad.length} players in squad`
+    : 'No squad set yet — can be added later';
+
+  renderEvents(s.events||[]);
+  renderLiveAddPlayerOptions_(squad);
+}
+
+function renderLiveAddPlayerOptions_(squad){
+  const box=document.getElementById('liveAddSquadPlayer');
+  const sel=document.getElementById('liveAddPlayerSelect');
+  if(!box||!sel)return;
+
+  const names=new Set(
+    (squad||[]).map(x=>typeof x==='string'?x:(x.player||x.name||''))
+  );
+
+  const available=(DATA.players||[]).filter(p=>!names.has(p.name));
+
+  if(!available.length){
+    box.classList.add('hidden');
+    return;
+  }
+
+  sel.innerHTML=
+    '<option value="">Add player to squad...</option>'+
+    available.map(p=>`<option value="${esc(p.name)}">${esc(p.name)}</option>`).join('');
+
+  box.classList.remove('hidden');
+}
+
+async function addPlayerToLiveSquadNow(){
+  const player=val('liveAddPlayerSelect');
+  if(!player)return toast('Select a player');
+
+  try{
+    await call('addPlayerToSquad',PIN,currentMatchId,player);
+    await refreshSummary();
+    toast(player+' added to squad');
+  }catch(e){
+    toast(e.message||'Could not add player');
+  }
+}
+function renderEvents(events){
+  const feed=document.getElementById('eventFeed');
+  if(!events||!events.length){
+    feed.innerHTML='<div class="muted">No events yet</div>';
+    return;
+  }
+
+  feed.innerHTML=[...events].reverse().map(e=>{
+    const min=e.minute?`${esc(e.minute)}' `:'';
+    const main=e.player||e.scorer||e.assist||e.eventType||e.type||'Event';
+    const detail=[
+      e.eventType||e.type||'',
+      e.player&&e.player!==main?e.player:'',
+      e.assist?`Assist: ${e.assist}`:'',
+      e.zone?`Zone ${e.zone}`:'',
+      e.originZone?`Origin ${e.originZone}`:'',
+      e.notes||''
+    ].filter(Boolean).join(' • ');
+
+    return `
+      <div class="event">
+        <div class="score">
+          <div>
+            <b>${min}${esc(main)}</b>
+            <div class="muted">${esc(detail)}</div>
+          </div>
+          ${e.eventId?`
+          <button class="btn secondary" style="min-height:36px;padding:6px 9px;font-size:12px"
+            onclick="editEvent('${escJs(e.eventId)}')">Edit</button>`:''}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function startEvent(type){
+  if(!currentMatchId)return;
+  draftEvent={type};
+  editingEventId='';
+  selectedZone='';
+  selectedOriginZone='';
+
+  document.getElementById('eventTitle').textContent=type;
+  document.getElementById('eventForm').classList.remove('hidden');
+  document.getElementById('eventFields').innerHTML='';
+  document.getElementById('zoneBlock').classList.add('hidden');
+  document.getElementById('originZoneBlock').classList.add('hidden');
+  document.getElementById('eventNotes').value='';
+
+  const squad=(currentSummary&&currentSummary.squad)||[];
+  const names=squad.map(x=>typeof x==='string'?x:(x.player||x.name||'')).filter(Boolean);
+
+  const playerOptions='<option value="">Select player...</option>'+
+    names.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('');
+
+  if(type==='Goal'){
+    document.getElementById('eventFields').innerHTML=`
+      <select id="evPlayer">${playerOptions}</select><br><br>
+      <select id="evAssist">
+        <option value="">No assist / select assist...</option>
+        ${names.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('')}
+      </select><br><br>
+      <select id="evGoalType">
+        <option value="">Goal type...</option>
+        <option>Open Play</option>
+        <option>Set Piece</option>
+        <option>Corner</option>
+        <option>Free Kick</option>
+        <option>Penalty</option>
+        <option>Own Goal</option>
+        <option>Other</option>
+      </select>
+    `;
+    document.getElementById('zoneBlock').classList.remove('hidden');
+    document.getElementById('originZoneBlock').classList.remove('hidden');
+    renderZonePitch_('pitch',false);
+    renderZonePitch_('pitch2',true);
+  }
+
+  else if(type==='Conceded Goal'){
+    document.getElementById('eventFields').innerHTML=`
+      <select id="evGoalType">
+        <option value="">Goal type...</option>
+        <option>Open Play</option>
+        <option>Set Piece</option>
+        <option>Corner</option>
+        <option>Free Kick</option>
+        <option>Penalty</option>
+        <option>Own Goal</option>
+        <option>Other</option>
+      </select>
+    `;
+  }
+
+  else if(type==='Substitution'){
+    document.getElementById('eventFields').innerHTML=`
+      <select id="evPlayerOff">
+        <option value="">Player off...</option>
+        ${names.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('')}
+      </select><br><br>
+      <select id="evPlayerOn">
+        <option value="">Player on...</option>
+        ${names.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('')}
+      </select>
+    `;
+  }
+
+  else if(type==='Yellow Card'||type==='Red Card'){
+    document.getElementById('eventFields').innerHTML=`
+      <select id="evPlayer">${playerOptions}</select>
+    `;
+  }
+
+  document.getElementById('eventForm').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function renderZonePitch_(id,isOrigin){
+  const pitch=document.getElementById(id);
+  pitch.innerHTML='';
+
+  for(let i=1;i<=11;i++){
+    const z=document.createElement('div');
+    z.className=`zone z${i}`;
+    z.textContent='Z'+i;
+    z.onclick=()=>{
+      if(isOrigin)selectedOriginZone=String(i);
+      else selectedZone=String(i);
+
+      [...pitch.querySelectorAll('.zone')].forEach(x=>x.classList.remove('sel'));
+      z.classList.add('sel');
+    };
+    pitch.appendChild(z);
+  }
+}
+
+function cancelEvent(){
+  draftEvent=null;
+  editingEventId='';
+  selectedZone='';
+  selectedOriginZone='';
+  document.getElementById('eventForm').classList.add('hidden');
+}
+
+function useClockMinute(){
+  document.getElementById('minute').value=currentClockMinute_();
+}
+
+function currentClockMinute_(){
+  let sec=clockBaseSeconds||0;
+  if(clockRunningSince){
+    sec+=Math.max(0,Math.floor((Date.now()-clockRunningSince)/1000));
+  }
+
+  const mins=Math.floor(sec/60);
+
+  if(matchHalf===1){
+    if(mins<=45)return String(Math.max(1,mins));
+    return '45+'+(mins-45);
+  }
+
+  const secondHalfMinute=45+mins;
+  if(secondHalfMinute<=90)return String(Math.max(46,secondHalfMinute));
+  return '90+'+(secondHalfMinute-90);
+}
+
+async function saveEvent(){
+  if(eventSaveBusy)return;
+  if(!draftEvent)return;
+
+  const minute=val('minute').trim()||currentClockMinute_();
+  const notes=val('eventNotes');
+  const type=draftEvent.type;
+
+  const event={
+    type,
+    minute,
+    notes
+  };
+
+  if(type==='Goal'){
+    event.player=val('evPlayer');
+    event.assist=val('evAssist');
+    event.goalType=val('evGoalType');
+    event.zone=selectedZone;
+    event.originZone=selectedOriginZone;
+    if(!event.player)return toast('Select the scorer');
+  }
+
+  if(type==='Conceded Goal'){
+    event.goalType=val('evGoalType');
+  }
+
+  if(type==='Substitution'){
+    event.playerOff=val('evPlayerOff');
+    event.playerOn=val('evPlayerOn');
+    if(!event.playerOff||!event.playerOn)return toast('Select both players');
+    if(event.playerOff===event.playerOn)return toast('Choose different players');
+  }
+
+  if(type==='Yellow Card'||type==='Red Card'){
+    event.player=val('evPlayer');
+    if(!event.player)return toast('Select a player');
+  }
+
+  const btn=document.getElementById('eventSaveBtn');
+  eventSaveBusy=true;
+  if(window.pmdSetButtonBusy)pmdSetButtonBusy(btn,true,'Saving…');
+  else{btn.disabled=true;btn.textContent='Saving…'}
+
+  try{
+    if(editingEventId){
+      await call('updateEvent',PIN,currentMatchId,editingEventId,event);
+      toast('Event updated');
+    }else{
+      await call('saveEvent',PIN,currentMatchId,event);
+      toast('Event saved');
+    }
+
+    cancelEvent();
+    await refreshSummary();
+  }catch(e){
+    toast(e.message||'Could not save event');
+  }finally{
+    eventSaveBusy=false;
+    if(window.pmdSetButtonBusy)pmdSetButtonBusy(btn,false);
+    else{btn.disabled=false;btn.textContent='Save Event'}
+  }
+}
+
+async function undoLastEvent(){
+  if(!currentMatchId)return;
+  if(!confirm('Undo the most recent event?'))return;
+
+  try{
+    await call('undoLastEvent',PIN,currentMatchId);
+    await refreshSummary();
+    toast('Last event removed');
+  }catch(e){
+    toast(e.message||'Could not undo event');
+  }
+}
+
+async function editEvent(eventId){
+  const events=(currentSummary&&currentSummary.events)||[];
+  const e=events.find(x=>String(x.eventId)===String(eventId));
+  if(!e)return toast('Event not found');
+
+  editingEventId=eventId;
+  startEvent(e.type||e.eventType||'');
+  editingEventId=eventId;
+
+  document.getElementById('minute').value=e.minute||'';
+  document.getElementById('eventNotes').value=e.notes||'';
+
+  if((e.type||e.eventType)==='Goal'){
+    if(exists('evPlayer'))document.getElementById('evPlayer').value=e.player||e.scorer||'';
+    if(exists('evAssist'))document.getElementById('evAssist').value=e.assist||'';
+    if(exists('evGoalType'))document.getElementById('evGoalType').value=e.goalType||'';
+    selectedZone=String(e.zone||'');
+    selectedOriginZone=String(e.originZone||'');
+
+    if(selectedZone){
+      const z=document.querySelector(`#pitch .z${selectedZone}`);
+      if(z)z.classList.add('sel');
+    }
+    if(selectedOriginZone){
+      const z=document.querySelector(`#pitch2 .z${selectedOriginZone}`);
+      if(z)z.classList.add('sel');
+    }
+  }
+
+  if((e.type||e.eventType)==='Conceded Goal'){
+    if(exists('evGoalType'))document.getElementById('evGoalType').value=e.goalType||'';
+  }
+
+  if((e.type||e.eventType)==='Substitution'){
+    if(exists('evPlayerOff'))document.getElementById('evPlayerOff').value=e.playerOff||'';
+    if(exists('evPlayerOn'))document.getElementById('evPlayerOn').value=e.playerOn||'';
+  }
+
+  if((e.type||e.eventType)==='Yellow Card'||(e.type||e.eventType)==='Red Card'){
+    if(exists('evPlayer'))document.getElementById('evPlayer').value=e.player||'';
+  }
+
+  document.getElementById('eventForm').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function applyClockState_(clock){
+  if(!clock)return;
+
+  clockBaseSeconds=Number(clock.elapsedSeconds||clock.baseSeconds||0);
+  clockRunningSince=clock.runningSince?new Date(clock.runningSince).getTime():null;
+  clockOnBreak=!!clock.onBreak;
+  matchHalf=Number(clock.half||1);
+
+  updateClockDisplay_();
+
+  if(matchTimer){
+    clearInterval(matchTimer);
+    matchTimer=null;
+  }
+
+  if(clockRunningSince&&!clockOnBreak){
+    matchTimer=setInterval(updateClockDisplay_,1000);
+  }
+
+  const btn=document.getElementById('clockBtn');
+  if(btn){
+    btn.textContent=clockRunningSince&&!clockOnBreak?'Pause':'Start';
+    btn.className='btn '+(clockRunningSince&&!clockOnBreak?'secondary':'green');
+  }
+
+  const htBtn=document.getElementById('htBtn');
+  if(htBtn){
+    htBtn.textContent=clockOnBreak?'Start Second Half':'Half Time';
+  }
+}
+
+function updateClockDisplay_(){
+  let sec=clockBaseSeconds||0;
+  if(clockRunningSince&&!clockOnBreak){
+    sec+=Math.max(0,Math.floor((Date.now()-clockRunningSince)/1000));
+  }
+
+  const m=Math.floor(sec/60);
+  const s=sec%60;
+
+  const el=document.getElementById('clockDisplay');
+  if(el)el.textContent=
+    String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+
+  const started=document.getElementById('clockStartedAt');
+  if(started){
+    started.textContent=clockRunningSince&&!clockOnBreak
+      ? 'Running'
+      : (clockOnBreak?'Half-time break':'Stopped');
+  }
+}
+
+async function toggleClock(){
+  if(!currentMatchId)return;
+
+  try{
+    const running=clockRunningSince&&!clockOnBreak;
+
+    if(running){
+      await call('pauseMatchClock',PIN,currentMatchId);
+    }else{
+      await call('startMatchClock',PIN,currentMatchId);
+    }
+
+    const fresh=await call('getMatchSummary',PIN,currentMatchId);
+    currentSummary=fresh;
+    applyClockState_(fresh.clock);
+  }catch(e){
+    toast(e.message||'Could not update clock');
+  }
+}
+
+async function resetClock(){
+  if(!currentMatchId)return;
+  if(!confirm('Reset the current half clock?'))return;
+
+  try{
+    await call('resetMatchClock',PIN,currentMatchId);
+    const fresh=await call('getMatchSummary',PIN,currentMatchId);
+    currentSummary=fresh;
+    applyClockState_(fresh.clock);
+    toast('Clock reset');
+  }catch(e){
+    toast(e.message||'Could not reset clock');
+  }
+}
+
+async function toggleHalfTime(){
+  if(!currentMatchId)return;
+
+  try{
+    if(clockOnBreak){
+      await call('startSecondHalf',PIN,currentMatchId);
+      toast('Second half started');
+    }else{
+      await call('setHalfTime',PIN,currentMatchId);
+      toast('Half time');
+    }
+
+    const fresh=await call('getMatchSummary',PIN,currentMatchId);
+    currentSummary=fresh;
+    renderSummary(fresh);
+    applyClockState_(fresh.clock);
+  }catch(e){
+    toast(e.message||'Could not update half time');
+  }
+}
+
+function showFinishMatchConfirm(){
+  document.getElementById('finishModal').classList.remove('hidden');
+}
+
+function hideFinishMatchConfirm(){
+  document.getElementById('finishModal').classList.add('hidden');
+}
+
+async function finishMatch(){
+  if(!currentMatchId)return;
+
+  const btn=document.getElementById('confirmFinishBtn');
+  if(window.pmdSetButtonBusy)pmdSetButtonBusy(btn,true,'Finishing…');
+  else{btn.disabled=true;btn.textContent='Finishing…'}
+
+  try{
+    await call('finishMatch',PIN,currentMatchId);
+    hideFinishMatchConfirm();
+    clearSession();
+
+    currentSummary=await call('getMatchSummary',PIN,currentMatchId);
+    renderSummary(currentSummary);
+    applyClockState_(currentSummary.clock);
+
+    DATA.matches=await call('getMatches',PIN,true);
+    populateMatches();
+
+    toast('Match finished');
+  }catch(e){
+    toast(e.message||'Could not finish match');
+  }finally{
+    if(window.pmdSetButtonBusy)pmdSetButtonBusy(btn,false);
+    else{btn.disabled=false;btn.textContent='Finish Match'}
+  }
+}
+
+async function showPastMatches(){
+  showView('pastMatches');
+  const el=document.getElementById('pastMatchesList');
+  el.textContent='Loading…';
+
+  try{
+    const matches=await call('getPastMatches',PIN);
+    if(!matches.length){
+      el.innerHTML='<div class="muted">No past matches.</div>';
+      return;
+    }
+
+    el.innerHTML=matches.map(m=>`
+      <div class="event" style="cursor:pointer" onclick="openPastMatch('${escJs(m.matchId)}')">
+        <div class="score">
+          <div>
+            <b>${esc(m.date)} — ${esc(m.opponent)}</b>
+            <div class="muted">${esc(m.competition||'')} • ${esc(m.venue||'')}</div>
+          </div>
+          <strong style="font-size:20px">${esc(m.scoreFor??'')}-${esc(m.scoreAgainst??'')}</strong>
+        </div>
+      </div>
+    `).join('');
+  }catch(e){
+    el.textContent=e.message||'Could not load matches';
+  }
+}
+
+async function openPastMatch(matchId){
+  currentPastMatchId=matchId;
+
+  try{
+    const s=await call('getFullMatchSummary',PIN,matchId);
+    document.getElementById('pmName').textContent=
+      `${s.match.date||''} — ${s.match.opponent||''}`;
+    document.getElementById('pmMeta').textContent=
+      `${s.match.competition||''} • ${s.match.venue||''}`;
+    document.getElementById('pmScore').textContent=
+      `${s.scoreFor??0} - ${s.scoreAgainst??0}`;
+
+    const feed=document.getElementById('pmEventFeed');
+    const events=s.events||[];
+
+    feed.innerHTML=events.length
+      ? events.map(e=>`
+          <div class="event">
+            <b>${e.minute?esc(e.minute)+"' ":''}${esc(e.type||e.eventType||'Event')}</b>
+            <div class="muted">${esc([
+              e.player||e.scorer||'',
+              e.assist?`Assist: ${e.assist}`:'',
+              e.notes||''
+            ].filter(Boolean).join(' • '))}</div>
+          </div>
+        `).join('')
+      : '<div class="muted">No events</div>';
+
+    showView('pastMatch');
+  }catch(e){
+    toast(e.message||'Could not load match');
+  }
+}
+
+async function editPastMatchSquad(){
+  if(!currentPastMatchId)return;
+  currentMatchId=currentPastMatchId;
+  showView('squad');
+  await loadSquadEditor_();
+}
+
+async function reopenPastMatch(){
+  if(!currentPastMatchId)return;
+  if(!confirm('Reopen this completed match?'))return;
+
+  try{
+    await call('reopenMatch',PIN,currentPastMatchId);
+    currentMatchId=currentPastMatchId;
+    currentSummary=await call('getMatchSummary',PIN,currentMatchId);
+    showView('match');
+    renderSummary(currentSummary);
+    applyClockState_(currentSummary.clock);
+    saveSession();
+    toast('Match reopened');
+  }catch(e){
+    toast(e.message||'Could not reopen match');
+  }
+}
+
+function returnToCurrentMatch(){
+  if(currentMatchId){
+    showView('match');
+    if(currentSummary)renderSummary(currentSummary);
+  }else{
+    showView('home');
+  }
+}
+async function showSeasonStats(){
+  showView('stats');
+  const el=document.getElementById('statsTable');
+  el.textContent='Loading…';
+
+  try{
+    const stats=await call('getSeasonStats',PIN);
+    const rows=Array.isArray(stats)?stats:(stats.players||stats.rows||[]);
+
+    if(!rows.length){
+      el.innerHTML='<div class="muted">No season stats available.</div>';
+      return;
+    }
+
+    el.innerHTML=`
+      <div style="overflow:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead>
+            <tr>
+              <th style="text-align:left;padding:8px;border-bottom:1px solid #dfe7ed">Player</th>
+              <th style="padding:8px;border-bottom:1px solid #dfe7ed">Apps</th>
+              <th style="padding:8px;border-bottom:1px solid #dfe7ed">Mins</th>
+              <th style="padding:8px;border-bottom:1px solid #dfe7ed">G</th>
+              <th style="padding:8px;border-bottom:1px solid #dfe7ed">A</th>
+              <th style="padding:8px;border-bottom:1px solid #dfe7ed">YC</th>
+              <th style="padding:8px;border-bottom:1px solid #dfe7ed">RC</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map(r=>`
+              <tr>
+                <td style="padding:8px;border-bottom:1px solid #edf1f4"><b>${esc(r.player||r.name||'')}</b></td>
+                <td style="text-align:center;padding:8px;border-bottom:1px solid #edf1f4">${esc(r.appearances??r.apps??0)}</td>
+                <td style="text-align:center;padding:8px;border-bottom:1px solid #edf1f4">${esc(r.minutes??0)}</td>
+                <td style="text-align:center;padding:8px;border-bottom:1px solid #edf1f4">${esc(r.goals??0)}</td>
+                <td style="text-align:center;padding:8px;border-bottom:1px solid #edf1f4">${esc(r.assists??0)}</td>
+                <td style="text-align:center;padding:8px;border-bottom:1px solid #edf1f4">${esc(r.yellowCards??r.yellows??0)}</td>
+                <td style="text-align:center;padding:8px;border-bottom:1px solid #edf1f4">${esc(r.redCards??r.reds??0)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }catch(e){
+    el.textContent=e.message||'Could not load season stats';
+  }
+}
+
+async function shareResult(matchId){
+  if(!matchId)return;
+
+  try{
+    const text=await call('buildShareResultText',PIN,matchId);
+
+    if(navigator.share){
+      try{
+        await navigator.share({text});
+        return;
+      }catch(e){
+        if(e&&e.name==='AbortError')return;
+      }
+    }
+
+    await navigator.clipboard.writeText(text);
+    toast('Result copied');
+  }catch(e){
+    try{
+      const summary=await call('getMatchSummary',PIN,matchId);
+      const m=summary.match||{};
+      const text=
+        `${m.venue==='Away'?m.opponent:DATA.teamName} ${summary.scoreFor??0}-${summary.scoreAgainst??0} ${m.venue==='Away'?DATA.teamName:m.opponent}`;
+      await navigator.clipboard.writeText(text);
+      toast('Result copied');
+    }catch(err){
+      toast(err.message||'Could not share result');
+    }
+  }
+}
+
+async function showVotingAdmin(){
+  showView('votingAdmin');
+
+  const select=document.getElementById('votingMatchSelect');
+  const matches=await call('getVotingMatches',PIN);
+
+  select.innerHTML='<option value="">Select match...</option>'+
+    matches.map(m=>`
+      <option value="${esc(m.matchId)}">
+        ${esc(m.date)} — ${esc(m.opponent)}
+      </option>
+    `).join('');
+
+  if(matches.length)select.value=matches[0].matchId;
+
+  select.onchange=async()=>{
+    await updateVotingAdminStatus_();
+  };
+
+  await updateVotingAdminStatus_();
+
+  const link=location.origin+location.pathname.replace(/match2\.html$/,'vote.html');
+  document.getElementById('playerVotingLink').value=link;
+}
+
+async function updateVotingAdminStatus_(){
+  const id=val('votingMatchSelect');
+  const status=document.getElementById('votingStatus');
+  const results=document.getElementById('votingResults');
+
+  results.classList.add('hidden');
+
+  if(!id){
+    status.innerHTML='<div class="muted">Select a match.</div>';
+    return;
+  }
+
+  try{
+    const s=await call('getVotingAdminStatus',PIN,id);
+
+    status.innerHTML=`
+      <div class="score">
+        <div>
+          <b>${esc(s.opponent||'')}</b>
+          <div class="muted">${esc(s.date||'')} ${s.competition?'• '+esc(s.competition):''}</div>
+        </div>
+        <span class="pill">${s.open?'OPEN':'CLOSED'}</span>
+      </div>
+      <div class="subsMatchSummary">
+        <span class="pill">Ballots: ${esc(s.ballotsReceived??0)}</span>
+        <span class="pill">Eligible: ${esc(s.eligibleVoters??0)}</span>
+      </div>
+    `;
+  }catch(e){
+    status.textContent=e.message||'Could not load voting status';
+  }
+}
+
+async function openVotingForSelected(){
+  const id=val('votingMatchSelect');
+  if(!id)return toast('Select a match');
+
+  try{
+    await call('openVoting',PIN,id);
+    await updateVotingAdminStatus_();
+    toast('Voting opened');
+  }catch(e){
+    toast(e.message||'Could not open voting');
+  }
+}
+
+async function closeVotingNow(){
+  const id=val('votingMatchSelect');
+  if(!id)return toast('Select a match');
+  if(!confirm('Close voting for this match?'))return;
+
+  try{
+    await call('closeVoting',PIN,id);
+    await updateVotingAdminStatus_();
+    toast('Voting closed');
+  }catch(e){
+    toast(e.message||'Could not close voting');
+  }
+}
+
+async function showVotingResults(){
+  const id=val('votingMatchSelect');
+  if(!id)return toast('Select a match');
+
+  const box=document.getElementById('votingResults');
+  box.classList.remove('hidden');
+  box.innerHTML='<div class="muted">Loading…</div>';
+
+  try{
+    const r=await call('getVotingResults',PIN,id);
+    const top=r.top3||r.top||[];
+    const dotd=r.dotd||r.dickOfTheDay||null;
+    const voted=r.voted||[];
+    const outstanding=r.outstanding||[];
+
+    box.innerHTML=`
+      <h2>Voting Results</h2>
+
+      <div class="podium">
+        ${top.map((x,i)=>`
+          <div class="row">
+            <span>${i+1}. ${esc(x.player||x.name||'')}</span>
+            <span>${esc(x.points??0)} pts</span>
+          </div>
+        `).join('')}
+      </div>
+
+      <div class="dotd" style="margin-top:14px">
+        <b>Dick of the Day</b>
+        <div style="margin-top:5px">${dotd?esc(dotd.player||dotd.name||''):'No result yet'}</div>
+        ${dotd&&Array.isArray(dotd.reasons)?dotd.reasons.map(x=>`<div class="reason">${esc(x)}</div>`).join(''):''}
+      </div>
+
+      <div style="margin-top:14px">
+        <b>Voted (${voted.length})</b>
+        <div class="muted">${voted.length?voted.map(esc).join(', '):'None yet'}</div>
+      </div>
+
+      <div style="margin-top:10px">
+        <b>Still to vote (${outstanding.length})</b>
+        <div class="muted">${outstanding.length?outstanding.map(esc).join(', '):'Everyone has voted'}</div>
+      </div>
+    `;
+  }catch(e){
+    box.textContent=e.message||'Could not load results';
+  }
+}
+
+async function copyVotingLink(){
+  const link=val('playerVotingLink');
+  if(!link)return;
+
+  try{
+    await navigator.clipboard.writeText(link);
+    toast('Voting link copied');
+  }catch(e){
+    document.getElementById('playerVotingLink').select();
+    document.execCommand('copy');
+    toast('Voting link copied');
+  }
+}
+
+let subsData=null;
+let subsView='confirm';
+
+async function showSubsTracker(){
+  showView('subsTracker');
+  document.getElementById('subsTrackerSummary').innerHTML='<div class="muted">Loading…</div>';
+  document.getElementById('subsTrackerConfirmView').innerHTML='';
+  document.getElementById('subsTrackerPlayerView').innerHTML='';
+  document.getElementById('subsTrackerMatchView').innerHTML='';
+  document.getElementById('subsTrackerOwedView').innerHTML='';
+
+  try{
+    subsData=await call('getSubsTrackerData',PIN);
+    renderSubsTracker_();
+  }catch(e){
+    document.getElementById('subsTrackerSummary').textContent=
+      e.message||'Could not load subs tracker';
+  }
+}
+
+function setSubsView(view){
+  subsView=view;
+
+  ['confirm','player','match','owed'].forEach(v=>{
+    const tab=document.getElementById(
+      v==='confirm'?'subsTabConfirm':
+      v==='player'?'subsTabPlayer':
+      v==='match'?'subsTabMatch':
+      'subsTabOwed'
+    );
+
+    tab.className='btn '+(v===view?'active':'secondary');
+
+    const box=document.getElementById(
+      v==='confirm'?'subsTrackerConfirmView':
+      v==='player'?'subsTrackerPlayerView':
+      v==='match'?'subsTrackerMatchView':
+      'subsTrackerOwedView'
+    );
+
+    box.classList.toggle('hidden',v!==view);
+  });
+}
+
+function renderSubsTracker_(){
+  if(!subsData)return;
+
+  const totalDue=Number(subsData.totalDue||0);
+  const totalPaid=Number(subsData.totalPaid||0);
+  const outstanding=Math.max(0,totalDue-totalPaid);
+
+  document.getElementById('subsTrackerSummary').innerHTML=`
+    <div class="subsSummary">
+      <div class="subsSummaryBox">
+        <span class="muted">Total due</span>
+        <b>£${totalDue.toFixed(2)}</b>
+      </div>
+      <div class="subsSummaryBox">
+        <span class="muted">Outstanding</span>
+        <b>£${outstanding.toFixed(2)}</b>
+      </div>
+    </div>
+  `;
+
+  renderSubsConfirm_();
+  renderSubsByPlayer_();
+  renderSubsByMatch_();
+  renderSubsOwed_();
+  setSubsView(subsView);
+}
+
+function subsStatusClass_(status){
+  status=String(status||'').toLowerCase();
+  if(status.includes('confirmed'))return'paid';
+  if(status.includes('claim'))return'claimed';
+  if(status.includes('not paid'))return'owed';
+  return'unknown';
+}
+
+function renderSubsConfirm_(){
+  const box=document.getElementById('subsTrackerConfirmView');
+  const claims=subsData.claims||subsData.awaitingConfirmation||[];
+
+  if(!claims.length){
+    box.innerHTML='<div class="muted">No payment claims awaiting confirmation.</div>';
+    return;
+  }
+
+  box.innerHTML=claims.map(x=>`
+    <div class="subsPlayer">
+      <div class="subsPlayerBody" style="padding-top:12px">
+        <div class="score">
+          <div>
+            <b>${esc(x.player||'')}</b>
+            <div class="muted">${esc(x.match||x.opponent||'')}</div>
+          </div>
+          <span class="subsStatus claimed">Claims Paid</span>
+        </div>
+
+        <div class="subsActions">
+          <button class="btn green" onclick="confirmSubsPayment('${escJs(x.player)}','${escJs(x.matchId||'')}')">Confirm</button>
+          <button class="btn danger" onclick="rejectSubsPayment('${escJs(x.player)}','${escJs(x.matchId||'')}')">Not Paid</button>
+          <button class="btn secondary" onclick="markSubsUnconfirmed('${escJs(x.player)}','${escJs(x.matchId||'')}')">Unconfirmed</button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function confirmSubsPayment(player,matchId){
+  await setSubsStatus_(player,matchId,'Confirmed Paid');
+}
+
+async function rejectSubsPayment(player,matchId){
+  await setSubsStatus_(player,matchId,'Not Paid');
+}
+
+async function markSubsUnconfirmed(player,matchId){
+  await setSubsStatus_(player,matchId,'Unconfirmed');
+}
+
+async function setSubsStatus_(player,matchId,status){
+  try{
+    await call('setSubsStatus',PIN,player,matchId,status);
+    subsData=await call('getSubsTrackerData',PIN);
+    renderSubsTracker_();
+    toast('Subs updated');
+  }catch(e){
+    toast(e.message||'Could not update subs');
+  }
+}
+function renderSubsByPlayer_(){
+  const box=document.getElementById('subsTrackerPlayerView');
+  const players=subsData.players||subsData.byPlayer||[];
+
+  if(!players.length){
+    box.innerHTML='<div class="muted">No player subs data.</div>';
+    return;
+  }
+
+  box.innerHTML=players.map(p=>{
+    const items=p.matches||p.items||[];
+    const unpaid=items.filter(x=>{
+      const s=String(x.status||'').toLowerCase();
+      return s==='not paid'||s==='unconfirmed';
+    });
+    const claims=items.filter(x=>String(x.status||'').toLowerCase().includes('claim'));
+    const amount=Number(p.amountDue!=null?p.amountDue:unpaid.length*3);
+
+    return `
+      <details class="subsPlayer">
+        <summary>
+          <div class="score">
+            <div>
+              ${esc(p.player||p.name||'')}
+              <div class="subsMini">${unpaid.length} unpaid${claims.length?' • '+claims.length+' awaiting confirmation':''}</div>
+            </div>
+            <div class="subsOwedAmt">£${amount.toFixed(2)}</div>
+          </div>
+        </summary>
+
+        <div class="subsPlayerBody">
+          ${unpaid.length?`
+            <div style="font-weight:800;margin-bottom:5px">Amount due</div>
+            ${unpaid.map(x=>`
+              <div class="subsMatchRow">
+                <div class="score">
+                  <div>
+                    <b>${esc(x.opponent||x.match||'Match')}</b>
+                    <div class="muted">${esc(x.date||'')}</div>
+                  </div>
+                  <span class="subsStatus ${subsStatusClass_(x.status)}">${esc(x.status||'Unconfirmed')}</span>
+                </div>
+              </div>
+            `).join('')}
+          `:'<div class="muted">Nothing currently due.</div>'}
+
+          ${claims.length?`
+            <div style="font-weight:800;margin-top:12px">Awaiting confirmation</div>
+            ${claims.map(x=>`
+              <div class="subsMatchRow">
+                <div class="score">
+                  <div>
+                    <b>${esc(x.opponent||x.match||'Match')}</b>
+                    <div class="muted">${esc(x.date||'')}</div>
+                  </div>
+                  <span class="subsStatus claimed">Claims Paid</span>
+                </div>
+              </div>
+            `).join('')}
+          `:''}
+
+          ${p.paymentLink&&amount>0?`
+            <a class="btn green full" style="display:flex;align-items:center;justify-content:center;text-decoration:none;margin-top:10px"
+              href="${esc(p.paymentLink)}" target="_blank">Open Payment Link</a>
+          `:''}
+
+          ${amount>0?`
+            <button class="btn secondary full" style="margin-top:7px"
+              onclick="copyPlayerSubsSummary('${escJs(p.player||p.name||'')}')">Copy Payment Summary</button>
+          `:''}
+        </div>
+      </details>
+    `;
+  }).join('');
+}
+
+async function copyPlayerSubsSummary(playerName){
+  const players=subsData.players||subsData.byPlayer||[];
+  const p=players.find(x=>(x.player||x.name)===playerName);
+  if(!p)return;
+
+  const items=p.matches||p.items||[];
+  const unpaid=items.filter(x=>{
+    const s=String(x.status||'').toLowerCase();
+    return s==='not paid'||s==='unconfirmed';
+  });
+  const claims=items.filter(x=>String(x.status||'').toLowerCase().includes('claim'));
+  const amount=Number(p.amountDue!=null?p.amountDue:unpaid.length*3);
+
+  let text=`${playerName} — subs summary\n`;
+  text+=`Amount due: £${amount.toFixed(2)}\n`;
+
+  if(unpaid.length){
+    text+='\nUnpaid:\n';
+    unpaid.forEach(x=>{
+      text+=`• ${x.date||''} ${x.opponent||x.match||'Match'} — £3\n`;
+    });
+  }
+
+  if(claims.length){
+    text+='\nAwaiting confirmation:\n';
+    claims.forEach(x=>{
+      text+=`• ${x.date||''} ${x.opponent||x.match||'Match'}\n`;
+    });
+  }
+
+  if(p.paymentLink&&amount>0){
+    text+=`\nPayment link:\n${p.paymentLink}`;
+  }
+
+  try{
+    await navigator.clipboard.writeText(text);
+    toast('Payment summary copied');
+  }catch(e){
+    toast('Could not copy summary');
+  }
+}
+
+function renderSubsByMatch_(){
+  const box=document.getElementById('subsTrackerMatchView');
+  const matches=subsData.matches||subsData.byMatch||[];
+
+  if(!matches.length){
+    box.innerHTML='<div class="muted">No match subs data.</div>';
+    return;
+  }
+
+  box.innerHTML=matches.map(m=>`
+    <details class="subsPlayer">
+      <summary>
+        <div class="score">
+          <div>
+            ${esc(m.date||'')} — ${esc(m.opponent||m.match||'')}
+            <div class="subsMini">${esc(m.competition||'')}</div>
+          </div>
+          <span class="pill">${esc((m.players||m.items||[]).length)} players</span>
+        </div>
+      </summary>
+
+      <div class="subsPlayerBody">
+        ${(m.players||m.items||[]).map(x=>`
+          <div class="subsMatchRow">
+            <div class="score">
+              <div><b>${esc(x.player||x.name||'')}</b></div>
+              <span class="subsStatus ${subsStatusClass_(x.status)}">${esc(x.status||'Unconfirmed')}</span>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </details>
+  `).join('');
+}
+
+function renderSubsOwed_(){
+  const box=document.getElementById('subsTrackerOwedView');
+  const players=(subsData.players||subsData.byPlayer||[])
+    .map(p=>{
+      const items=p.matches||p.items||[];
+      const unpaid=items.filter(x=>{
+        const s=String(x.status||'').toLowerCase();
+        return s==='not paid'||s==='unconfirmed';
+      });
+      const amount=Number(p.amountDue!=null?p.amountDue:unpaid.length*3);
+      return {...p,amount};
+    })
+    .filter(p=>p.amount>0)
+    .sort((a,b)=>b.amount-a.amount);
+
+  if(!players.length){
+    box.innerHTML='<div class="muted">Nobody currently owes subs.</div>';
+    return;
+  }
+
+  box.innerHTML=players.map(p=>`
+    <div class="subsDebtorRow">
+      <div>
+        <b>${esc(p.player||p.name||'')}</b>
+        <div class="subsMini">${esc((p.matches||p.items||[]).filter(x=>{
+          const s=String(x.status||'').toLowerCase();
+          return s==='not paid'||s==='unconfirmed';
+        }).length)} unpaid matches</div>
+      </div>
+      <div class="subsOwedAmt">£${p.amount.toFixed(2)}</div>
+    </div>
+  `).join('');
+}
+
+window.addEventListener('beforeunload',()=>{
+  if(currentMatchId)saveSession();
+});
+
+document.addEventListener('visibilitychange',async()=>{
+  if(document.visibilityState==='visible'&&currentMatchId){
+    try{
+      const fresh=await call('getMatchSummary',PIN,currentMatchId);
+      currentSummary=fresh;
+      renderSummary(fresh);
+      applyClockState_(fresh.clock);
+    }catch(e){}
+  }
+});
+
+window.addEventListener('online',async()=>{
+  if(currentMatchId){
+    try{
+      await refreshSummary();
+      toast('Back online');
+    }catch(e){}
+  }
+});
+
+window.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){
+    if(!document.getElementById('finishModal').classList.contains('hidden')){
+      hideFinishMatchConfirm();
+    }
+    if(!document.getElementById('lineupPlayerPicker').classList.contains('hidden')){
+      closeLineupPlayerPicker();
+    }
+  }
+});
+</script>
+</body>
+</html>
