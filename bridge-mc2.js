@@ -3,7 +3,7 @@
 
   // MATCH CENTRE 2 TEST backend only.
   // Paste the MC2 Apps Script /exec URL below after deploying Code_MC2_TEST.gs.
-  const APP_URL='PASTE_MC2_APPS_SCRIPT_EXEC_URL_HERE';
+  const APP_URL='https://script.google.com/macros/s/AKfycbyyKCa-QgpbWFgaBbdR6mZ3hBFj6KGVsLPNIBOidBrgZrd7d69oh-OAXOP_c_hMFJty/exec';
   let seq=0;
 
   window.pmdCall=(action,...args)=>new Promise((resolve,reject)=>{
