@@ -1,6 +1,22 @@
 (() => {
   'use strict';
 
+  // Load the shared mobile button-feedback layer on every GitHub app page
+  // that already uses this bridge.
+  try {
+    if (!window.__PMD_BUTTON_FEEDBACK_LOADING__) {
+      window.__PMD_BUTTON_FEEDBACK_LOADING__ = true;
+      const feedbackScript = document.createElement('script');
+      const base = document.currentScript && document.currentScript.src
+        ? document.currentScript.src
+        : window.location.href;
+      feedbackScript.src = new URL('button-feedback.js', base).href;
+      feedbackScript.defer = true;
+      feedbackScript.dataset.pmdButtonFeedback = '1';
+      document.head.appendChild(feedbackScript);
+    }
+  } catch (e) {}
+
   // Apps Script ContentService + JSONP. This avoids CORS and avoids embedding
   // the Google web-app UI in an iframe, which Safari can block/interfere with.
   const APP_URL='https://script.google.com/macros/s/AKfycbyHHPOgGsImS9Kvr3SdZiKUGp3ZrbnOoJnIPUckm_Y9hH1K9b_j_Kgmw6UhzVMAyQ0q/exec';
