@@ -36,6 +36,7 @@
   <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png">
   <link rel="icon" type="image/png" href="./apple-touch-icon.png">
   <link rel="manifest" href="./manifest.webmanifest">
+  <script src="./bridge-client.js"></script>
 </head>
 <body onload="boot()">
   <div class="wrap">
@@ -78,7 +79,6 @@
     <div id="toast" class="hidden"></div>
   </div>
 
-<iframe id="dataBridge" title="Data bridge" src="https://script.google.com/macros/s/AKfycbyHHPOgGsImS9Kvr3SdZiKUGp3ZrbnOoJnIPUckm_Y9hH1K9b_j_Kgmw6UhzVMAyQ0q/exec?page=bridge" style="position:absolute;width:1px;height:1px;left:-9999px;border:0;opacity:0" aria-hidden="true"></iframe>
 <script>
 const ADMIN_AUTH_KEY='pmd_admin_auth';
 let PIN='';
@@ -86,53 +86,7 @@ let PLAYERS=[];
 
 function $(id){return document.getElementById(id)}
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-const BRIDGE_ORIGIN='https://script.google.com';
-let BRIDGE_READY=false;
-let BRIDGE_SEQ=0;
-const BRIDGE_PENDING=new Map();
-const BRIDGE_QUEUE=[];
-
-function bridgeFrame_(){return document.getElementById('dataBridge')}
-function flushBridgeQueue_(){
-  if(!BRIDGE_READY)return;
-  const frame=bridgeFrame_();
-  if(!frame||!frame.contentWindow)return;
-  while(BRIDGE_QUEUE.length){
-    frame.contentWindow.postMessage(BRIDGE_QUEUE.shift(), '*');
-  }
-}
-function markBridgeReady_(){BRIDGE_READY=true;flushBridgeQueue_()}
-window.addEventListener('message',event=>{
-  const msg=event.data||{};
-  if(msg.type==='pmd-bridge-ready'){
-    markBridgeReady_();
-    return;
-  }
-  if(msg.type!=='pmd-bridge-response'||!msg.id)return;
-  const pending=BRIDGE_PENDING.get(msg.id);
-  if(!pending)return;
-  BRIDGE_PENDING.delete(msg.id);
-  clearTimeout(pending.timer);
-  if(msg.ok){pending.resolve(msg.result)}
-  else{pending.reject(new Error(msg.error||'Request failed'))}
-});
-function call(fn,...args){
-  return new Promise((resolve,reject)=>{
-    const id='req_'+Date.now()+'_'+(++BRIDGE_SEQ);
-    const request={type:'pmd-bridge-request',id,action:fn,args};
-    const timer=setTimeout(()=>{
-      BRIDGE_PENDING.delete(id);
-      reject(new Error('The data connection timed out. Please refresh and try again.'));
-    },25000);
-    BRIDGE_PENDING.set(id,{resolve,reject,timer});
-    if(BRIDGE_READY){
-      const frame=bridgeFrame_();
-      frame.contentWindow.postMessage(request,'*');
-    }else{
-      BRIDGE_QUEUE.push(request);
-    }
-  });
-}
+function call(fn,...args){return pmdCall(fn,...args)}
 function getSavedAuth(){
   try{
     const raw=localStorage.getItem(ADMIN_AUTH_KEY);
