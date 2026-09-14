@@ -53,9 +53,10 @@
       margin-bottom:14px;
     }
     h1 { margin:0 0 8px; font-size:27px; }
-    p { margin:0 0 18px; color:var(--muted); line-height:1.5; }
+    p { margin:0; color:var(--muted); line-height:1.5; }
     a {
       display:block;
+      margin-top:18px;
       background:var(--blue);
       color:white;
       text-decoration:none;
@@ -63,21 +64,16 @@
       padding:14px 16px;
       border-radius:12px;
     }
-    a:active { background:var(--blue2); }
     .small { margin-top:14px; font-size:12px; color:var(--muted); }
   </style>
 
   <script>
     const APP_URL = "https://script.google.com/macros/s/AKfycbyHHPOgGsImS9Kvr3SdZiKUGp3ZrbnOoJnIPUckm_Y9hH1K9b_j_Kgmw6UhzVMAyQ0q/exec";
+    const params = new URLSearchParams(window.location.search);
+    const installMode = params.get('install') === '1';
 
     window.addEventListener('DOMContentLoaded', () => {
-      const standalone =
-        window.navigator.standalone === true ||
-        window.matchMedia('(display-mode: standalone)').matches;
-
-      // When launched from the iPhone Home Screen, go straight into the real app.
-      // In normal Safari, stay on this page so it can be added to the Home Screen.
-      if (standalone) {
+      if (!installMode) {
         window.location.replace(APP_URL);
       }
     });
@@ -87,9 +83,19 @@
   <main class="card">
     <img src="./apple-touch-icon.png" alt="Perranporth AFC">
     <h1>Perranporth Control Centre</h1>
-    <p>Add this page to your iPhone Home Screen. Once saved, tapping the icon will open the Control Centre automatically.</p>
-    <a href="https://script.google.com/macros/s/AKfycbyHHPOgGsImS9Kvr3SdZiKUGp3ZrbnOoJnIPUckm_Y9hH1K9b_j_Kgmw6UhzVMAyQ0q/exec">Open Control Centre now</a>
+    <p id="message">Opening Control Centre…</p>
+    <a id="manualLink" href="https://script.google.com/macros/s/AKfycbyHHPOgGsImS9Kvr3SdZiKUGp3ZrbnOoJnIPUckm_Y9hH1K9b_j_Kgmw6UhzVMAyQ0q/exec">Open Control Centre</a>
     <div class="small">Perranporth AFC · 2026/27</div>
   </main>
+
+  <script>
+    if (!installMode) {
+      document.getElementById('manualLink').style.display = 'none';
+    } else {
+      document.getElementById('message').textContent =
+        'Install mode: use Share → Add to Home Screen from this page.';
+      document.getElementById('manualLink').style.display = 'block';
+    }
+  </script>
 </body>
 </html>
