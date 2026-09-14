@@ -122,7 +122,7 @@
     .subsPlayerBody{padding:0 12px 12px}
     .subsMatchRow{border-top:1px solid #edf1f4;padding:10px 0}
     .subsStatus{display:inline-block;border-radius:999px;padding:4px 8px;font-size:12px;font-weight:800}
-        .subsStatus.paid{background:#e5f6e8;color:#19752b}.subsStatus.claimed{background:#fff4d9;color:#8a6410}.subsStatus.owed{background:#fdeaea;color:#a42121}.subsStatus.unknown{background:#eef2f5;color:#61717f}
+    .subsStatus.paid{background:#e5f6e8;color:#19752b}.subsStatus.claimed{background:#fff4d9;color:#8a6410}.subsStatus.owed{background:#fdeaea;color:#a42121}.subsStatus.unknown{background:#eef2f5;color:#61717f}
     .subsActions{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:7px}
     .subsActions .btn{min-height:40px;font-size:13px;padding:8px}
 
@@ -510,6 +510,7 @@ async function logoutAdmin(){
   document.getElementById('pinInput').value='';
   document.getElementById('pinInput').focus();
 }
+
 async function initAdmin(){
   DATA=await call('getInitData',PIN);
   document.getElementById('teamTitle').textContent=DATA.teamName;
@@ -834,939 +835,1248 @@ let selectedLineupSlot=null;
 function lineupPlayerMeta_(name){
   return (DATA.players||[]).find(p=>p.name===name)||{name:name,position:'',goalkeeper:false};
 }
-function activeSquadNames_(){
-  const summary=currentSummary||{};
-  const squad=summary.squad||[];
-  return squad.map(x=>typeof x==='string'?x:(x.player||x.name||'')).filter(Boolean);
+
+function lineupDisplayName_(name){
+  const p=lineupPlayerMeta_(name);
+  return p.name||name;
 }
 
-function lineupAssignedNames_(){
-  return lineupState.map(x=>x.player).filter(Boolean);
+function lineupInitials_(name){
+  return String(name||'').split(/\s+/).filter(Boolean).map(x=>x[0]).join('').slice(0,2).toUpperCase();
 }
 
-function buildLineupFromSummary_(){
-  const summary=currentSummary||{};
-  const saved=summary.lineup||summary.lineupPositions||[];
-  const names=activeSquadNames_();
+function lineupSlots_(){
+  return LINEUP_PRESETS[val('lineupFormation')]||LINEUP_PRESETS['Custom'];
+}
 
-  lineupState=[];
+function ensureLineupSlots_(){
+  const slots=lineupSlots_();
+  const pitch=lineupState.filter(x=>x.area==='Pitch');
 
-  if(Array.isArray(saved)&&saved.length){
-    lineupState=saved.map(x=>({
-      player:x.player||x.name||'',
-      x:Number(x.x)||50,
-      y:Number(x.y)||50,
-      label:x.label||x.role||'',
-      bench:!!x.bench
-    })).filter(x=>x.player);
-    return;
+  pitch.forEach((p,i)=>{
+    if(!Number.isInteger(p.slot)||p.slot<0||p.slot>10){
+      p.slot=Math.max(0,Math.min(10,Number(p.order||i+1)-1));
+    }
+    if((!Number.isFinite(Number(p.x))||!Number.isFinite(Number(p.y)))&&slots[p.slot]){
+      p.x=slots[p.slot].x;p.y=slots[p.slot].y;
+    }
+  });
+}
+
+async function openLineupBuilder(){
+  const id=currentMatchId||val('matchSelect');
+  if(!id)return toast('Select a match');
+  currentMatchId=id;
+
+  const m=(DATA.matches||[]).find(x=>x.matchId===id);
+
+  const [saved,squad]=await Promise.all([
+    call('getLineup',PIN,currentMatchId),
+    call('getSquad',PIN,currentMatchId)
+  ]);
+
+  document.getElementById('lineupMatchLabel').textContent=m?`${m.date} — ${m.opponent} (${m.venue})`:'';
+  const formation=(saved&&saved.formation&&LINEUP_PRESETS[saved.formation])?saved.formation:'4-3-3';
+  document.getElementById('lineupFormation').value=formation;
+
+  if(saved&&saved.positions&&saved.positions.length){
+    lineupState=saved.positions.map((p,i)=>({
+      player:p.player,area:p.area,x:Number(p.x||50),y:Number(p.y||50),
+      order:Number(p.order||i+1),slot:p.area==='Pitch'?Math.max(0,Math.min(10,Number(p.order||i+1)-1)):null
+    }));
+  }else if(squad&&squad.length){
+    const starters=squad.filter(p=>p.status==='Starter');
+    const subs=squad.filter(p=>p.status!=='Starter');
+    const slots=lineupSlots_();
+    lineupState=[
+      ...starters.slice(0,11).map((p,i)=>({player:p.player,area:'Pitch',x:slots[i].x,y:slots[i].y,slot:i,order:i+1})),
+      ...subs.map((p,i)=>({player:p.player,area:'Bench',x:0,y:0,slot:null,order:i+1}))
+    ];
+  }else{
+    lineupState=[];
   }
 
-  const preset=LINEUP_PRESETS[val('lineupFormation')]||LINEUP_PRESETS.Custom;
-  names.slice(0,11).forEach((name,i)=>{
-    const slot=preset[i]||{x:50,y:50,label:''};
-    lineupState.push({player:name,x:slot.x,y:slot.y,label:slot.label,bench:false});
-  });
-
-  names.slice(11).forEach(name=>{
-    lineupState.push({player:name,x:50,y:50,label:'SUB',bench:true});
-  });
+  ensureLineupSlots_();
+  showView('lineup');
+  renderLineupBuilder();
 }
 
 function renderLineupBuilder(){
+  ensureLineupSlots_();
   const pitch=document.getElementById('lineupPitchPlayers');
   const bench=document.getElementById('lineupBenchPlayers');
   const available=document.getElementById('lineupAvailablePlayers');
+  const slots=lineupSlots_();
 
-  const assigned=new Set(lineupAssignedNames_());
-  const squadNames=activeSquadNames_();
-  const availableNames=(DATA.players||[]).map(p=>p.name).filter(n=>!assigned.has(n)&&!squadNames.includes(n));
+  const selected=new Set(lineupState.map(x=>x.player));
+  const pitchPlayers=lineupState.filter(x=>x.area==='Pitch');
+  const benchPlayers=lineupState.filter(x=>x.area==='Bench').sort((a,b)=>(a.order||0)-(b.order||0));
+  const occupiedSlots=new Map(pitchPlayers.map(p=>[p.slot,p]));
 
-  pitch.innerHTML='';
-  bench.innerHTML='';
-  available.innerHTML='';
-
-  const preset=LINEUP_PRESETS[val('lineupFormation')]||LINEUP_PRESETS.Custom;
-  const pitchPlayers=lineupState.filter(x=>!x.bench);
-
-  preset.forEach((slot,i)=>{
-    const occupied=pitchPlayers[i]||null;
-    const el=document.createElement('div');
-    el.className='formationSlot'+(occupied?' occupied':'');
-    el.style.left=slot.x+'%';
-    el.style.top=slot.y+'%';
-    el.dataset.slotIndex=i;
-    el.innerHTML=occupied?'':`<div class="slotPlus">+</div><div class="slotLabel">${esc(slot.label)}</div>`;
-    el.onclick=()=>openLineupPlayerPicker(i,false,slot.label);
-
-    if(occupied){
-      const marker=createLineupMarker_(occupied,i);
-      el.appendChild(marker);
-    }
-    pitch.appendChild(el);
+  let html='';
+  slots.forEach((slot,i)=>{
+    const p=occupiedSlots.get(i);
+    html+=`<button class="formationSlot${p?' occupied':''}" style="left:${slot.x}%;top:${slot.y}%"
+      onclick="openLineupPlayerPicker(${i})">
+      <span class="slotPlus">+</span><span class="slotLabel">${esc(slot.label)}</span>
+    </button>`;
   });
 
-  const benchPlayers=lineupState.filter(x=>x.bench);
-  benchPlayers.forEach((p,i)=>{
+  html+=pitchPlayers.map(p=>{
     const meta=lineupPlayerMeta_(p.player);
-    const chip=document.createElement('button');
-    chip.className='lineupChip'+(meta.goalkeeper?' gk':'');
-    chip.textContent=p.player;
-    chip.onclick=()=>openLineupPlayerPicker(i,true,'SUB');
-    bench.appendChild(chip);
-  });
+    return `<div class="lineupMarker${meta.goalkeeper?' gk':''}" data-player="${esc(p.player)}"
+      style="left:${Math.max(5,Math.min(95,p.x))}%;top:${Math.max(5,Math.min(95,p.y))}%"
+      onclick="openLineupPlayerPicker(${Number.isInteger(p.slot)?p.slot:0})"
+      onpointerdown="beginLineupDrag(event,'${escapeJs_(p.player)}','Pitch')">
+      <div class="lineupDisc">${esc(lineupInitials_(p.player))}</div>
+      <div class="lineupName">${esc(lineupDisplayName_(p.player))}</div>
+    </div>`;
+  }).join('');
+  pitch.innerHTML=html;
 
-  availableNames.forEach(name=>{
-    const meta=lineupPlayerMeta_(name);
-    const chip=document.createElement('button');
-    chip.className='lineupChip'+(meta.goalkeeper?' gk':'');
-    chip.textContent=name;
-    chip.onclick=()=>addAvailablePlayerToBench_(name);
-    available.appendChild(chip);
-  });
+  bench.innerHTML=benchPlayers.length?benchPlayers.map(p=>{
+    const meta=lineupPlayerMeta_(p.player);
+    return `<button class="lineupChip${meta.goalkeeper?' gk':''}" data-player="${esc(p.player)}"
+      onpointerdown="beginLineupDrag(event,'${escapeJs_(p.player)}','Bench')">${esc(p.player)}</button>`;
+  }).join(''):'<span class="muted">Drag players here to make them substitutes.</span>';
 
-  document.getElementById('lineupBenchCount').textContent=benchPlayers.length+' players';
-  document.getElementById('lineupAvailableCount').textContent=availableNames.length+' available';
+  const avail=(DATA.players||[]).filter(p=>!selected.has(p.name));
+  available.innerHTML=avail.length?avail.map(p=>`<button class="lineupChip${p.goalkeeper?' gk':''}"
+      onpointerdown="beginLineupDrag(event,'${escapeJs_(p.name)}','Available')"
+      onclick="addAvailablePlayerToBench('${escapeJs_(p.name)}')">${esc(p.name)}</button>`).join(''):'<span class="muted">All active players are in the lineup or on the bench.</span>';
+
+  document.getElementById('lineupBenchCount').textContent=`${benchPlayers.length} subs`;
+  document.getElementById('lineupAvailableCount').textContent=`${avail.length} available`;
 }
 
-function createLineupMarker_(entry,index){
-  const meta=lineupPlayerMeta_(entry.player);
-  const el=document.createElement('div');
-  el.className='lineupMarker'+(meta.goalkeeper?' gk':'');
-  el.innerHTML=`<div class="lineupDisc">${esc(meta.shirtNo||'')}</div><div class="lineupName">${esc(entry.player)}</div>`;
-  el.onclick=(e)=>{
-    e.stopPropagation();
-    if(Date.now()<lineupSuppressClickUntil)return;
-    openLineupPlayerPicker(index,false,entry.label||'');
-  };
-  attachLineupDrag_(el,index);
-  return el;
+function escapeJs_(s){
+  return String(s||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'");
 }
 
-function openLineupPlayerPicker(index,isBench,role){
-  selectedLineupSlot={index,isBench,role:role||''};
+function openLineupPlayerPicker(slotIndex){
+  if(Date.now()<lineupSuppressClickUntil)return;
+  selectedLineupSlot=Number(slotIndex);
+  const slots=lineupSlots_();
+  const slot=slots[selectedLineupSlot]||{label:'Position'};
+  const current=lineupState.find(x=>x.area==='Pitch'&&x.slot===selectedLineupSlot);
+  const used=new Set(lineupState.filter(x=>x.area==='Pitch'&&x.slot!==selectedLineupSlot).map(x=>x.player));
 
-  const current=isBench
-    ? lineupState.filter(x=>x.bench)[index]
-    : lineupState.filter(x=>!x.bench)[index];
+  document.getElementById('playerPickerTitle').textContent=current?'Change player':'Choose player';
+  document.getElementById('playerPickerRole').textContent=slot.label;
 
-  document.getElementById('playerPickerTitle').textContent=current&&current.player?'Change player':'Choose player';
-  document.getElementById('playerPickerRole').textContent=role||'Position';
-
-  const assigned=new Set(lineupAssignedNames_());
-  const currentName=current&&current.player?current.player:'';
-  if(currentName)assigned.delete(currentName);
-
-  const players=[...(DATA.players||[])].filter(p=>!assigned.has(p.name));
-
-  document.getElementById('playerPickerGrid').innerHTML=players.map(p=>`
-    <button class="playerPickBtn${p.goalkeeper?' gk':''}" onclick="choosePlayerForSelectedSlot('${escJs(p.name)}')">
-      ${esc(p.name)}
-      <div class="muted">${esc(p.position||'')}${p.shirtNo?' • #'+esc(p.shirtNo):''}</div>
-    </button>
-  `).join('');
+  const available=(DATA.players||[]).filter(p=>!used.has(p.name));
+  document.getElementById('playerPickerGrid').innerHTML=available.map(p=>`<button class="playerPickBtn${p.goalkeeper?' gk':''}"
+    onclick="assignPlayerToSelectedSlot('${escapeJs_(p.name)}')">${esc(p.name)}</button>`).join('');
 
   const remove=document.getElementById('playerPickerRemove');
-  remove.classList.toggle('hidden',!currentName);
-
+  remove.classList.toggle('hidden',!current);
   document.getElementById('lineupPlayerPicker').classList.remove('hidden');
 }
 
 function closeLineupPlayerPicker(e){
-  if(e&&e.target!==e.currentTarget)return;
+  if(e&&e.target!==document.getElementById('lineupPlayerPicker'))return;
   document.getElementById('lineupPlayerPicker').classList.add('hidden');
   selectedLineupSlot=null;
 }
 
-function choosePlayerForSelectedSlot(name){
-  if(!selectedLineupSlot)return;
+function assignPlayerToSelectedSlot(name){
+  if(selectedLineupSlot===null)return;
+  const slots=lineupSlots_();
+  const spot=slots[selectedLineupSlot];
+  if(!spot)return;
 
-  const {index,isBench,role}=selectedLineupSlot;
-  if(isBench){
-    const bench=lineupState.filter(x=>x.bench);
-    const target=bench[index];
-    if(target)target.player=name;
-    else lineupState.push({player:name,x:50,y:50,label:'SUB',bench:true});
-  }else{
-    const pitch=lineupState.filter(x=>!x.bench);
-    const target=pitch[index];
-    const preset=LINEUP_PRESETS[val('lineupFormation')]||LINEUP_PRESETS.Custom;
-    const slot=preset[index]||{x:50,y:50,label:role||''};
-    if(target){
-      target.player=name;
-      target.x=slot.x;
-      target.y=slot.y;
-      target.label=role||slot.label||'';
-    }else{
-      lineupState.push({
-        player:name,
-        x:slot.x,
-        y:slot.y,
-        label:role||slot.label||'',
-        bench:false
-      });
-    }
-  }
+  // Remove the chosen player from anywhere else first.
+  lineupState=lineupState.filter(x=>x.player!==name);
+
+  // Remove whoever currently occupies this formation slot.
+  lineupState=lineupState.filter(x=>!(x.area==='Pitch'&&x.slot===selectedLineupSlot));
+
+  lineupState.push({
+    player:name,area:'Pitch',slot:selectedLineupSlot,
+    x:spot.x,y:spot.y,order:selectedLineupSlot+1
+  });
 
   closeLineupPlayerPicker();
   renderLineupBuilder();
 }
 
 function removePlayerFromSelectedSlot(){
-  if(!selectedLineupSlot)return;
-
-  const {index,isBench}=selectedLineupSlot;
-  if(isBench){
-    const benchIndexes=lineupState.map((x,i)=>x.bench?i:-1).filter(i=>i>=0);
-    const realIndex=benchIndexes[index];
-    if(realIndex!=null)lineupState.splice(realIndex,1);
-  }else{
-    const pitchIndexes=lineupState.map((x,i)=>!x.bench?i:-1).filter(i=>i>=0);
-    const realIndex=pitchIndexes[index];
-    if(realIndex!=null)lineupState.splice(realIndex,1);
-  }
-
+  if(selectedLineupSlot===null)return;
+  lineupState=lineupState.filter(x=>!(x.area==='Pitch'&&x.slot===selectedLineupSlot));
   closeLineupPlayerPicker();
   renderLineupBuilder();
 }
 
-function addAvailablePlayerToBench_(name){
-  if(lineupAssignedNames_().includes(name))return;
-  lineupState.push({player:name,x:50,y:50,label:'SUB',bench:true});
+function addAvailablePlayerToBench(name){
+  if(Date.now()<lineupSuppressClickUntil)return;
+  if(lineupState.some(x=>x.player===name))return;
+  lineupState.push({
+    player:name,area:'Bench',slot:null,x:0,y:0,
+    order:lineupState.filter(x=>x.area==='Bench').length+1
+  });
   renderLineupBuilder();
 }
 
-function attachLineupDrag_(el,index){
-  let active=false,startX=0,startY=0;
+function beginLineupDrag(e,player,area){
+  if(e.button!==undefined&&e.button!==0)return;
+  e.preventDefault();
 
-  const move=e=>{
-    if(!active)return;
-    const touch=e.touches?e.touches[0]:e;
-    const pitch=document.getElementById('lineupPitch');
-    const r=pitch.getBoundingClientRect();
+  const el=e.currentTarget;
+  const ghost=el.cloneNode(true);
+  ghost.classList.add('lineupDragGhost');
+  ghost.style.width=el.getBoundingClientRect().width+'px';
+  ghost.style.margin='0';
+  ghost.removeAttribute('onpointerdown');
+  ghost.removeAttribute('onclick');
+  document.body.appendChild(ghost);
 
-    const x=Math.max(4,Math.min(96,((touch.clientX-r.left)/r.width)*100));
-    const y=Math.max(4,Math.min(96,((touch.clientY-r.top)/r.height)*100));
-
-    el.parentElement.style.left=x+'%';
-    el.parentElement.style.top=y+'%';
-
-    const pitchEntries=lineupState.filter(x=>!x.bench);
-    const entry=pitchEntries[index];
-    if(entry){
-      entry.x=x;
-      entry.y=y;
-    }
-
-    if(e.cancelable)e.preventDefault();
+  lineupDrag={
+    player:player,area:area,ghost:ghost,
+    startX:e.clientX,startY:e.clientY,moved:false,pointerId:e.pointerId
   };
+  moveLineupGhost_(e.clientX,e.clientY);
 
-  const up=()=>{
-    if(!active)return;
-    active=false;
-    lineupSuppressClickUntil=Date.now()+350;
-    document.removeEventListener('mousemove',move);
-    document.removeEventListener('mouseup',up);
-    document.removeEventListener('touchmove',move);
-    document.removeEventListener('touchend',up);
-  };
-
-  const down=e=>{
-    const touch=e.touches?e.touches[0]:e;
-    startX=touch.clientX;
-    startY=touch.clientY;
-    active=true;
-
-    document.addEventListener('mousemove',move);
-    document.addEventListener('mouseup',up);
-    document.addEventListener('touchmove',move,{passive:false});
-    document.addEventListener('touchend',up);
-
-    if(e.cancelable)e.preventDefault();
-  };
-
-  el.addEventListener('mousedown',down);
-  el.addEventListener('touchstart',down,{passive:false});
+  document.addEventListener('pointermove',moveLineupDrag_);
+  document.addEventListener('pointerup',endLineupDrag_,{once:true});
+  document.addEventListener('pointercancel',endLineupDrag_,{once:true});
 }
 
-async function openLineupBuilder(){
-  if(!currentMatchId)return toast('Open a match first');
+function moveLineupGhost_(x,y){
+  if(!lineupDrag||!lineupDrag.ghost)return;
+  lineupDrag.ghost.style.left=x+'px';
+  lineupDrag.ghost.style.top=y+'px';
+}
 
-  try{
-    currentSummary=await call('getMatchSummary',PIN,currentMatchId);
-    const m=currentSummary.match||{};
-    document.getElementById('lineupMatchLabel').textContent=
-      `${m.date||''} ${m.opponent?'• '+m.opponent:''}`;
+function moveLineupDrag_(e){
+  if(!lineupDrag)return;
+  if(Math.hypot(e.clientX-lineupDrag.startX,e.clientY-lineupDrag.startY)>7)lineupDrag.moved=true;
+  moveLineupGhost_(e.clientX,e.clientY);
+}
 
-    const formation=m.formation||'Custom';
-    document.getElementById('lineupFormation').value=
-      LINEUP_PRESETS[formation]?formation:'Custom';
+function rectContains_(rect,x,y){
+  return x>=rect.left&&x<=rect.right&&y>=rect.top&&y<=rect.bottom;
+}
 
-    buildLineupFromSummary_();
+function nearestLineupSlot_(xPct,yPct,ignorePlayer){
+  const slots=lineupSlots_();
+  const occupied=new Set(
+    lineupState.filter(p=>p.area==='Pitch'&&p.player!==ignorePlayer&&Number.isInteger(p.slot)).map(p=>p.slot)
+  );
+  let best=null,bestDist=Infinity;
+  slots.forEach((s,i)=>{
+    if(occupied.has(i))return;
+    const d=Math.hypot(s.x-xPct,s.y-yPct);
+    if(d<bestDist){bestDist=d;best=i}
+  });
+  return best;
+}
+
+function endLineupDrag_(e){
+  document.removeEventListener('pointermove',moveLineupDrag_);
+  if(!lineupDrag)return;
+
+  const d=lineupDrag;
+  const x=e.clientX,y=e.clientY;
+  if(d.ghost)d.ghost.remove();
+
+  if(d.moved){
+    lineupSuppressClickUntil=Date.now()+350;
+    const pitchRect=document.getElementById('lineupPitch').getBoundingClientRect();
+    const benchRect=document.getElementById('lineupBench').getBoundingClientRect();
+    const availableRect=document.getElementById('lineupAvailable').getBoundingClientRect();
+    let row=lineupState.find(p=>p.player===d.player);
+
+    if(rectContains_(pitchRect,x,y)){
+      const xp=Math.max(5,Math.min(95,((x-pitchRect.left)/pitchRect.width)*100));
+      const yp=Math.max(5,Math.min(95,((y-pitchRect.top)/pitchRect.height)*100));
+      if(!row){
+        row={player:d.player,area:'Pitch',x:xp,y:yp,slot:null,order:lineupState.length+1};
+        lineupState.push(row);
+      }
+      row.area='Pitch';
+      row.x=xp;row.y=yp;
+      if(!Number.isInteger(row.slot)){
+        row.slot=nearestLineupSlot_(xp,yp,row.player);
+      }
+      row.order=Number.isInteger(row.slot)?row.slot+1:row.order;
+    }else if(rectContains_(benchRect,x,y)){
+      if(!row){
+        row={player:d.player,area:'Bench',x:0,y:0,slot:null,order:lineupState.length+1};
+        lineupState.push(row);
+      }
+      row.area='Bench';row.slot=null;row.x=0;row.y=0;
+      row.order=lineupState.filter(p=>p.area==='Bench'&&p.player!==d.player).length+1;
+    }else if(rectContains_(availableRect,x,y)){
+      lineupState=lineupState.filter(p=>p.player!==d.player);
+    }
     renderLineupBuilder();
-    showView('lineup');
-  }catch(e){
-    toast(e.message||'Could not load lineup');
   }
+
+  lineupDrag=null;
 }
 
 function applyLineupFormation(){
-  const formation=val('lineupFormation');
-  const preset=LINEUP_PRESETS[formation]||LINEUP_PRESETS.Custom;
-  const pitchPlayers=lineupState.filter(x=>!x.bench);
+  const slots=lineupSlots_();
+  const pitch=lineupState.filter(x=>x.area==='Pitch')
+    .sort((a,b)=>(Number.isInteger(a.slot)?a.slot:99)-(Number.isInteger(b.slot)?b.slot:99));
 
-  pitchPlayers.forEach((p,i)=>{
-    const slot=preset[i]||{x:50,y:50,label:''};
-    p.x=slot.x;
-    p.y=slot.y;
-    p.label=slot.label||'';
+  pitch.forEach((p,i)=>{
+    const slotIndex=Number.isInteger(p.slot)?Math.min(p.slot,10):i;
+    const spot=slots[slotIndex]||slots[i];
+    if(spot){
+      p.slot=slotIndex;
+      p.x=spot.x;p.y=spot.y;p.order=slotIndex+1;
+    }
   });
-
   renderLineupBuilder();
 }
 
 function clearLineup(){
-  if(!confirm('Clear the current lineup board?'))return;
   lineupState=[];
   renderLineupBuilder();
+  toast('Lineup cleared');
 }
 
 async function saveLineupBuilder(){
-  if(!currentMatchId)return;
+  if(!currentMatchId)return toast('Select a match');
 
-  const payload=lineupState.map(x=>({
-    player:x.player,
-    x:Number(x.x)||50,
-    y:Number(x.y)||50,
-    role:x.label||'',
-    bench:!!x.bench
-  }));
+  const payload={
+    formation:val('lineupFormation')||'Custom',
+    positions:lineupState.map((p,i)=>({
+      player:p.player,area:p.area,x:p.x||0,y:p.y||0,
+      order:p.area==='Pitch'&&Number.isInteger(p.slot)?p.slot+1:(p.order||i+1)
+    }))
+  };
 
+  await call('saveLineup',PIN,currentMatchId,payload);
+  DATA.matches=await call('getMatches',PIN,true);
+  populateMatches();
+  document.getElementById('matchSelect').value=currentMatchId;
+  updateSelectedMatchInfo();
+  toast('Lineup saved');
+  await returnToCurrentMatch();
+}
+
+async function returnToCurrentMatch(){
+  if(!currentMatchId){
+    showView('home');
+    return;
+  }
   try{
-    await call('saveLineupBuilder',PIN,currentMatchId,val('lineupFormation'),payload);
     currentSummary=await call('getMatchSummary',PIN,currentMatchId);
-    toast('Lineup saved');
     showView('match');
     renderSummary(currentSummary);
+    applyClockState_(currentSummary.clock);
   }catch(e){
-    toast(e.message||'Could not save lineup');
+    showView('home');
   }
 }
 
-function editSelectedSquad(){
-  showView('squad');
-  loadSquadEditor_();
+async function editSelectedSquad(){
+  const id=val('matchSelect');
+  if(!id)return toast('Select a match');
+  currentMatchId=id;
+
+  const m=(DATA.matches||[]).find(x=>x.matchId===id);
+  if(m&&m.status==='Live')return toast('Edit the squad before kickoff or after full time');
+
+  const existing=await call('getSquad',PIN,currentMatchId);
+  buildSquad(existing,false);
 }
 
 async function editCurrentSquad(){
-  showView('squad');
-  loadSquadEditor_();
+  if(!currentMatchId)return toast('No match selected');
+  const m=currentSummary&&currentSummary.match;
+  if(m&&m.status==='Live')return toast('Edit the squad before kickoff or after full time');
+  const existing=await call('getSquad',PIN,currentMatchId);
+  buildSquad(existing,false);
 }
 
-async function loadSquadEditor_(){
-  if(!currentMatchId)return;
-  const m=(DATA.matches||[]).find(x=>x.matchId===currentMatchId)||
-          (currentSummary&&currentSummary.match)||{};
-  document.getElementById('squadMatchLabel').textContent=
-    `${m.date||''} ${m.opponent?'• '+m.opponent:''}`;
+async function openSelectedMatch(){
+  currentMatchId=val('matchSelect');
+  if(!currentMatchId)return toast('Select a match');
+  showView('match');
+  await refreshSummary();
+  saveSession();
+}
 
-  const squad=await call('getSquad',PIN,currentMatchId);
-  const squadMap=new Map(
-    squad.map(x=>[
-      typeof x==='string'?x:(x.player||x.name||''),
-      x
-    ])
-  );
+function buildSquad(existing,isCompleted){
+  const saved=new Map((existing||[]).map(x=>[x.player,x]));
+  const m=(DATA.matches||[]).find(x=>x.matchId===currentMatchId);
+  const pastName=document.getElementById('pmName');
+  const pastMeta=document.getElementById('pmMeta');
+  document.getElementById('squadMatchLabel').textContent=m
+    ? `${m.date} — ${m.opponent} (${m.venue})`
+    : (isCompleted&&pastName ? `${pastMeta.textContent} — ${pastName.textContent}` : '');
+  document.getElementById('squadTitle').textContent=isCompleted?'Post-match Squad':'Optional Squad';
+  const saveBtn=document.querySelector('#squadView .btn.green.full');
+  if(saveBtn)saveBtn.textContent=isCompleted?'Save Squad & Update Stats':'Save Squad';
 
-  const players=DATA.players||[];
-  document.getElementById('squadList').innerHTML=players.map(p=>{
-    const s=squadMap.get(p.name)||{};
-    const selected=!!squadMap.get(p.name);
+  showView('squad');
+  document.getElementById('squadList').innerHTML=DATA.players.map((p,i)=>{
+    const s=saved.get(p.name)||{};
+    const status=s.status||'Not in Squad';
+    const position=s.position||p.position||'';
+    const statuses=['Not in Squad','Starter','Sub','Unused'];
+    const positions=['GK','RB','RCB','CB','LCB','LB','RWB','LWB','DM','CM','AM','RW','LW','ST','Other'];
 
-    return `
-      <div class="playerRow">
-        <label style="display:flex;align-items:center;gap:9px">
-          <input
-            type="checkbox"
-            class="squadSelect"
-            data-player="${esc(p.name)}"
-            ${selected?'checked':''}
-            style="width:auto;min-height:0"
-          >
-          <b>${esc(p.name)}</b>
-        </label>
-
-        <select class="squadStatus" data-player="${esc(p.name)}">
-          <option value="Starter" ${s.status==='Starter'?'selected':''}>Starter</option>
-          <option value="Sub" ${s.status==='Sub'?'selected':''}>Sub</option>
-          <option value="Unused" ${s.status==='Unused'?'selected':''}>Unused</option>
-        </select>
-
-        <select class="squadPosition" data-player="${esc(p.name)}">
-          <option value="">Position</option>
-          ${[
-            'GK','RB','RCB','CB','LCB','LB','RWB','LWB',
-            'DM','CM','AM','RW','LW','ST','Other'
-          ].map(pos=>`<option ${s.position===pos?'selected':''}>${pos}</option>`).join('')}
-        </select>
-      </div>
-    `;
+    return `<div class="playerRow">
+      <div><b>${esc(p.name)}</b></div>
+      <select id="st${i}">${statuses.map(x=>`<option${x===status?' selected':''}>${x}</option>`).join('')}</select>
+      <select id="pos${i}"><option value="">Position</option>${positions.map(x=>`<option${x===position?' selected':''}>${x}</option>`).join('')}</select>
+    </div>`;
   }).join('');
 }
 
 async function saveSquad(){
-  const checks=[...document.querySelectorAll('.squadSelect:checked')];
+  const squad=DATA.players.map((p,i)=>({
+    player:p.name,
+    status:val('st'+i),
+    position:val('pos'+i),
+    shirtNo:p.shirtNo||''
+  })).filter(x=>x.status!=='Not in Squad');
 
-  const rows=checks.map(ch=>{
-    const player=ch.dataset.player;
-    const status=document.querySelector(`.squadStatus[data-player="${CSS.escape(player)}"]`)?.value||'Sub';
-    const position=document.querySelector(`.squadPosition[data-player="${CSS.escape(player)}"]`)?.value||'';
+  if(squad.length && !squad.some(x=>x.status==='Starter')){
+    return toast('If using a squad, select at least one starter');
+  }
 
-    return {player,status,position};
-  });
+  const completed=currentPastMatchId&&currentMatchId===currentPastMatchId;
+  currentSummary=await call('saveSquad',PIN,currentMatchId,squad);
 
-  try{
-    await call('saveSquad',PIN,currentMatchId,rows);
-    currentSummary=await call('getMatchSummary',PIN,currentMatchId);
-    toast('Squad saved');
-    showView('match');
-    renderSummary(currentSummary);
-  }catch(e){
-    toast(e.message||'Could not save squad');
+  DATA.matches=await call('getMatches',PIN,true);
+  populateMatches();
+
+  if(completed){
+    toast(squad.length?'Squad saved and player stats updated':'Squad cleared');
+    await openPastMatch(currentPastMatchId);
+  }else{
+    toast(squad.length?'Squad saved':'Squad cleared');
+    document.getElementById('matchSelect').value=currentMatchId;
+    updateSelectedMatchInfo();
+    showView('home');
   }
 }
 
-async function openSelectedMatch(){
+async function startSelectedMatch(){
   const id=val('matchSelect');
   if(!id)return toast('Select a match');
-
   currentMatchId=id;
-  currentSummary=await call('getMatchSummary',PIN,id);
-  showView('match');
-  renderSummary(currentSummary);
-  applyClockState_(currentSummary.clock);
-
-  const status=currentSummary.match&&currentSummary.match.status;
-  if(status!=='Completed')saveSession();
-  else clearSession();
+  await startCurrentMatch();
 }
 
 async function startCurrentMatch(){
-  if(!currentMatchId)return;
+  if(!currentMatchId)return toast('Select a match');
+
   try{
-    await call('startMatch',PIN,currentMatchId);
-    currentSummary=await call('getMatchSummary',PIN,currentMatchId);
+    currentSummary=await call('startMatch',PIN,currentMatchId);
+    DATA.matches=await call('getMatches',PIN,true);
+    populateMatches();
+    document.getElementById('matchSelect').value=currentMatchId;
+    updateSelectedMatchInfo();
+
+    showView('match');
     renderSummary(currentSummary);
     applyClockState_(currentSummary.clock);
     saveSession();
     toast('Match started');
-  }catch(e){
-    toast(e.message||'Could not start match');
+  }catch(e){}
+}
+
+async function editPastMatchSquad(){
+  if(!currentPastMatchId)return toast('No match selected');
+  currentMatchId=currentPastMatchId;
+  const existing=await call('getSquad',PIN,currentMatchId);
+  buildSquad(existing,true);
+}
+
+async function showPastMatches(){showView('pastMatches');const list=document.getElementById('pastMatchesList');const matches=(await call('getMatches',PIN,true)).filter(m=>m.status==='Completed');list.innerHTML=matches.length?matches.map(m=>`<div class="event" onclick="openPastMatch('${esc(m.matchId)}')"><b>${esc(m.date)}</b> — ${esc(m.opponent)} (${esc(m.venue)}) <span class="pill">${esc(m.ourScore)} - ${esc(m.oppScore)}</span></div>`).join(''):'No completed matches yet'}
+async function openPastMatch(matchId){currentPastMatchId=matchId;const s=await call('getFullMatchSummary',PIN,matchId);const m=s.match||{};document.getElementById('pmName').textContent=(m.opponent||'Match')+' ('+(m.venue||'')+')';document.getElementById('pmMeta').textContent=[m.date,m.competition].filter(Boolean).join(' • ');document.getElementById('pmScore').textContent=(m.ourScore||0)+' - '+(m.oppScore||0);document.getElementById('pmEventFeed').innerHTML=s.events.length?s.events.map(e=>`<div class="event"><b>${esc(formatMinute_(e.minute))}'</b> ${esc(e.type)} ${e.player?'— '+esc(e.player):''}${e.secondaryPlayer?' / '+esc(e.secondaryPlayer):''}</div>`).join(''):'No events recorded';showView('pastMatch')}
+async function showSeasonStats(){showView('stats');const rows=await call('getSeasonStats',PIN);document.getElementById('statsTable').innerHTML=rows.length?rows.map(r=>`<div class="event"><b>${esc(r.player)}</b><br><span class="muted">${r.appearances} apps • ${r.goals} G • ${r.assists} A • ${r.minutes} mins • ${r.yellows}/${r.reds} Y/R</span></div>`).join(''):'No completed matches yet'}
+
+async function showSubsTracker(){
+  showView('subsTracker');
+  const d=await call('getSubsTrackerData',PIN);
+  renderSubsTracker(d);
+}
+let SUBS_DATA=null;
+let SUBS_VIEW='confirm';
+let OPEN_SUBS_MATCH_ID='';
+
+function subsClass(status){
+  if(status==='Confirmed Paid') return 'paid';
+  if(status==='Claims Paid') return 'claimed';
+  if(status==='Not Paid') return 'owed';
+  return 'unknown';
+}
+
+function setSubsView(view){
+  SUBS_VIEW=view;
+  ['confirm','player','match','owed'].forEach(v=>{
+    const pane=document.getElementById('subsTracker'+v[0].toUpperCase()+v.slice(1)+'View');
+    const tab=document.getElementById('subsTab'+v[0].toUpperCase()+v.slice(1));
+    if(pane) pane.classList.toggle('hidden',v!==view);
+    if(tab){
+      tab.classList.toggle('active',v===view);
+      tab.classList.toggle('secondary',v!==view);
+    }
+  });
+}
+
+function renderSubsTracker(d){
+  SUBS_DATA=d;
+  document.getElementById('subsTrackerSummary').innerHTML=
+    `<div class="subsSummary">
+      <div class="subsSummaryBox"><b>£${d.totalOutstandingAmount}</b><span class="muted">currently due to pay</span></div>
+      <div class="subsSummaryBox"><b>${d.totalClaimsPaid}</b><span class="muted">claim paid · check</span></div>
+    </div>`;
+
+  renderSubsConfirm(d);
+  renderSubsByPlayer(d);
+  renderSubsByMatch(d);
+  renderSubsAmountsOwed(d);
+  setSubsView(SUBS_VIEW);
+}
+
+function renderSubsConfirm(d){
+  const host=document.getElementById('subsTrackerConfirmView');
+  const rows=[];
+
+  d.players.forEach(p=>{
+    p.matches
+      .filter(m=>m.status==='Claims Paid' || m.status==='Not Paid' || m.status==='Unconfirmed')
+      .forEach(m=>rows.push({player:p.name,...m}));
+  });
+
+  rows.sort((a,b)=>{
+    const order={'Claims Paid':0,'Not Paid':1,'Unconfirmed':2};
+    return (order[a.status]??9)-(order[b.status]??9) ||
+      String(b.date).localeCompare(String(a.date)) ||
+      a.player.localeCompare(b.player);
+  });
+
+  host.innerHTML=rows.length?rows.map(x=>{
+    const cls=subsClass(x.status);
+    const action=`<div class="grid2">
+      <button class="btn green" onclick="setSubs('${esc(x.matchId)}','${esc(x.player)}','Confirmed Paid')">Received</button>
+      <button class="btn danger" onclick="setSubs('${esc(x.matchId)}','${esc(x.player)}','Not Paid')">Not Received</button>
+    </div>`;
+
+    return `<div class="subsPlayer" style="padding:12px">
+      <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start">
+        <div>
+          <b>${esc(x.player)}</b>
+          <div class="subsMini">${esc(x.date)} · ${esc(x.match)}</div>
+        </div>
+        <span class="subsStatus ${cls}">${esc(x.status)}</span>
+      </div>
+      <div style="margin-top:10px">${action}</div>
+    </div>`;
+  }).join(''):'<div class="success">Everything that has been reported is confirmed.</div>';
+}
+
+function renderSubsByPlayer(d){
+  const host=document.getElementById('subsTrackerPlayerView');
+
+  host.innerHTML=d.players.length?d.players.map(p=>{
+    const unpaid=p.unpaidMatches||p.matches.filter(m=>
+      m.status==='Not Paid'||m.status==='Unconfirmed'
+    );
+
+    const unpaidRows=unpaid.length
+      ? unpaid.map(m=>`
+          <div class="subsMatchRow">
+            <div><b>${esc(m.date)} · ${esc(m.match)}</b></div>
+            <div style="margin-top:5px">
+              <span class="subsStatus ${subsClass(m.status)}">${esc(m.status)}</span>
+            </div>
+          </div>`).join('')
+      : '<div class="success">Nothing currently due to pay.</div>';
+
+    const payBox=unpaid.length
+      ? `<div style="background:#f6f0ff;border:1px solid #ded0f2;border-radius:12px;padding:12px;margin-bottom:12px">
+          <div style="display:flex;justify-content:space-between;gap:12px;align-items:center">
+            <div>
+              <b style="font-size:17px">Outstanding subs to pay</b>
+              <div class="subsMini">${unpaid.length} game${unpaid.length===1?'':'s'}</div>
+            </div>
+            <div class="subsOwedAmt">£${p.amountDue}</div>
+          </div>
+          <div style="margin-top:8px">${unpaidRows}</div>
+          ${p.totalPaymentLink
+            ? `<a class="btn purple full" style="margin-top:10px;text-decoration:none;text-align:center"
+                 href="${esc(p.totalPaymentLink)}" target="_blank" rel="noopener">Pay £${p.amountDue} in one payment</a>`
+            : ''}
+          <button class="btn secondary full" style="margin-top:7px"
+            onclick="copyPaymentForPlayer('${escJs(p.name)}')">Copy matches + payment link</button>
+        </div>`
+      : unpaidRows;
+
+    const historyRows=p.matches.map(m=>{
+      const cls=subsClass(m.status);
+      const mainAction=m.status==='Confirmed Paid'
+        ? `<button class="btn secondary" onclick="setSubs('${esc(m.matchId)}','${esc(p.name)}','Claims Paid')">Undo confirm</button>`
+        : `<button class="btn green" onclick="setSubs('${esc(m.matchId)}','${esc(p.name)}','Confirmed Paid')">Received</button>`;
+
+      return `<div class="subsMatchRow">
+        <div><b>${esc(m.date)} · ${esc(m.match)}</b></div>
+        <div style="margin-top:5px"><span class="subsStatus ${cls}">${esc(m.status)}</span></div>
+        <div class="subsActions">
+          ${mainAction}
+          <button class="btn danger" onclick="setSubs('${esc(m.matchId)}','${esc(p.name)}','Not Paid')">Not Received</button>
+          <button class="btn secondary" onclick="setSubs('${esc(m.matchId)}','${esc(p.name)}','N/A')">N/A</button>
+        </div>
+      </div>`;
+    }).join('');
+
+    const summary=p.amountDue>0
+      ? `£${p.amountDue} to pay`
+      : p.claimsPaid
+        ? `${p.claimsPaid} payment claim${p.claimsPaid===1?'':'s'} to check`
+        : 'all confirmed';
+
+    return `<details class="subsPlayer">
+      <summary>${esc(p.name)} — ${summary}</summary>
+      <div class="subsPlayerBody">
+        ${payBox}
+        ${p.claimsPaid
+          ? `<div class="muted" style="margin:8px 0 10px">🟡 ${p.claimsPaid} payment${p.claimsPaid===1?'':'s'} claimed paid and awaiting management confirmation — not included in the amount above.</div>`
+          : ''}
+        <details style="margin-top:8px">
+          <summary style="font-weight:800;cursor:pointer">Full match history / manage statuses</summary>
+          <div style="margin-top:6px">
+            ${historyRows||'<div class="muted">No chargeable matches yet.</div>'}
+          </div>
+        </details>
+      </div>
+    </details>`;
+  }).join(''):'<div class="muted">No subs data yet.</div>';
+}
+
+function renderSubsByMatch(d){
+  const host=document.getElementById('subsTrackerMatchView');
+  host.innerHTML=d.matches.length?d.matches.map(m=>{
+    const rows=m.players.map(p=>{
+      const cls=subsClass(p.status);
+      const mainAction=p.status==='Confirmed Paid'
+        ? `<button class="btn secondary" onclick="setSubs('${esc(m.matchId)}','${esc(p.name)}','Claims Paid')">Undo confirm</button>`
+        : `<button class="btn green" onclick="setSubs('${esc(m.matchId)}','${esc(p.name)}','Confirmed Paid')">Received</button>`;
+      return `<div class="subsMatchRow">
+        <div><b>${esc(p.name)}</b> <span class="subsStatus ${cls}">${esc(p.status)}</span></div>
+        <div class="subsActions">
+          ${mainAction}
+          <button class="btn danger" onclick="setSubs('${esc(m.matchId)}','${esc(p.name)}','Not Paid')">Not Received</button>
+          <button class="btn secondary" onclick="setSubs('${esc(m.matchId)}','${esc(p.name)}','N/A')">N/A</button>
+        </div>
+      </div>`;
+    }).join('');
+
+    const notPaidCount=m.players.filter(p=>p.status==='Not Paid').length;
+    const copyBtn=notPaidCount
+      ? `<button class="btn secondary full" style="margin-bottom:10px" onclick="copyNotPaidForMatch('${esc(m.matchId)}')">Copy ${notPaidCount} unpaid player${notPaidCount===1?'':'s'}</button>`
+      : '';
+
+    const openAttr=OPEN_SUBS_MATCH_ID===m.matchId?' open':'';
+    return `<details class="subsPlayer" data-match-id="${esc(m.matchId)}"${openAttr} ontoggle="rememberOpenSubsMatch(this)">
+      <summary>
+        <div><b>${esc(m.date)} · ${esc(m.match)}</b></div>
+        <div class="subsMatchSummary">
+          <span class="subsStatus paid">${m.confirmedPaid} confirmed</span>
+          <span class="subsStatus claimed">${m.claimsPaid} claim paid</span>
+          <span class="subsStatus owed">${m.notPaid} not paid</span>
+          <span class="subsStatus unknown">${m.unconfirmed} unconfirmed</span>
+        </div>
+      </summary>
+      <div class="subsPlayerBody">
+        ${copyBtn}
+        ${rows}
+      </div>
+    </details>`;
+  }).join(''):'<div class="muted">No completed match data yet.</div>';
+}
+
+function rememberOpenSubsMatch(el){
+  const id=el.getAttribute('data-match-id')||'';
+  if(el.open){
+    OPEN_SUBS_MATCH_ID=id;
+  }else if(OPEN_SUBS_MATCH_ID===id){
+    OPEN_SUBS_MATCH_ID='';
   }
 }
 
-async function refreshSummary(){
+function renderSubsAmountsOwed(d){
+  const host=document.getElementById('subsTrackerOwedView');
+  if(!d.debtors.length){
+    host.innerHTML='<div class="success">Nobody has any outstanding subs or payment claims to check.</div>';
+    return;
+  }
+
+  host.innerHTML=`<div class="card" style="box-shadow:none;margin:0;padding:12px">
+    ${d.debtors.map(p=>`
+      <div class="subsDebtorRow" style="align-items:flex-start">
+        <div style="flex:1">
+          <b>${esc(p.name)}</b>
+          <div class="subsMini">
+            ${p.amountDue>0
+              ? `${p.paymentDue} game${p.paymentDue===1?'':'s'} to pay · ${p.matches.map(m=>esc(m.match)).join(', ')}`
+              : 'No payment currently due'}
+            ${p.claimsPaid?` · ${p.claimsPaid} awaiting confirmation`:''}
+          </div>
+          ${p.totalPaymentLink&&p.amountDue>0
+            ? `<a class="btn purple" style="display:inline-block;margin-top:8px;text-decoration:none"
+                 href="${esc(p.totalPaymentLink)}" target="_blank" rel="noopener">Pay £${p.amountDue}</a>`
+            : ''}
+        </div>
+        <div class="subsOwedAmt">£${p.amountDue}</div>
+      </div>`).join('')}
+  </div>`;
+}
+
+
+async function copyText_(text,successMsg){
+  if(!text){
+    toast('Nothing to copy');
+    return;
+  }
+  try{
+    await navigator.clipboard.writeText(text);
+    toast(successMsg||'Copied');
+  }catch(e){
+    window.prompt('Copy this list:',text);
+  }
+}
+
+function buildMonzoLink_(amount,identifier){
+  const pounds=Number(amount||0).toFixed(2);
+  return `https://monzo.me/adamturner4/${pounds}?h=CmJ3lb&d=${encodeURIComponent(identifier||'Subs')}&account_type=personal`;
+}
+
+function playerSubsIdentifier_(playerName){
+  return String(playerName||'')
+    .replace(/[^A-Za-z0-9]/g,'') + 'Subs';
+}
+
+function copyNotPaidForMatch(matchId){
+  if(!SUBS_DATA) return;
+  const m=SUBS_DATA.matches.find(x=>x.matchId===matchId);
+  if(!m) return;
+
+  const names=m.players.filter(p=>p.status==='Not Paid').map(p=>p.name);
+  if(!names.length){
+    toast('Nobody is marked Not Received for this match');
+    return;
+  }
+
+  const paymentLink=m.paymentLink||buildMonzoLink_(3,'Subs');
+  const text=
+`${m.match} – subs outstanding
+
+${names.join('\n')}
+
+£3 each
+${paymentLink}`;
+
+  copyText_(text,'Match list copied');
+}
+
+function copyPaymentForPlayer(playerName){
+  if(!SUBS_DATA)return;
+  const p=SUBS_DATA.players.find(x=>x.name===playerName);
+  if(!p)return;
+
+  const matches=p.unpaidMatches||p.matches.filter(m=>
+    m.status==='Not Paid'||m.status==='Unconfirmed'
+  );
+  if(!matches.length){
+    toast('No subs currently due for '+playerName);
+    return;
+  }
+
+  const total=Number(p.amountDue||matches.length*3);
+  const paymentLink=p.totalPaymentLink||buildMonzoLink_(total,playerSubsIdentifier_(playerName));
+  const text=
+`${playerName} – subs outstanding
+
+${matches.map(m=>`${m.date} – ${m.match}`).join('\n')}
+
+Total: £${total}
+${paymentLink}`;
+
+  copyText_(text,'Player payment details copied');
+}
+
+function copyNotPaidForPlayer(playerName){
+  copyPaymentForPlayer(playerName);
+}
+
+async function setSubs(matchId,player,status){
+  if(SUBS_VIEW==='match') OPEN_SUBS_MATCH_ID=matchId;
+  const d=await call('setSubsStatus',PIN,matchId,player,status);
+  renderSubsTracker(d);
+  toast(player+' — '+status);
+}
+// Clock is timestamp-based (not a tick counter) so it stays accurate even if the
+// browser tab gets backgrounded/throttled.
+function currentElapsedSeconds(){if(clockRunningSince)return clockBaseSeconds+Math.floor((Date.now()-clockRunningSince)/1000);return clockBaseSeconds}
+
+async function syncSharedClock_(){
   if(!currentMatchId)return;
-  currentSummary=await call('getMatchSummary',PIN,currentMatchId);
-  renderSummary(currentSummary);
-  applyClockState_(currentSummary.clock);
+  try{
+    const clock=await call('getMatchClock',PIN,currentMatchId);
+    applyClockState_(clock);
+  }catch(e){}
+}
+
+function ensureClockSync_(){
+  if(clockSyncTimer)return;
+  clockSyncTimer=setInterval(syncSharedClock_,15000);
+}
+
+function stopClockSync_(){
+  if(clockSyncTimer){clearInterval(clockSyncTimer);clockSyncTimer=null}
 }
 
 function ensureSummarySync_(){
-  stopSummarySync_();
-  summarySyncTimer=setInterval(async()=>{
-    if(summarySyncBusy||!currentMatchId)return;
-    summarySyncBusy=true;
-    try{
-      const fresh=await call('getMatchSummary',PIN,currentMatchId);
-      currentSummary=fresh;
-      renderSummary(fresh);
-      applyClockState_(fresh.clock);
-    }catch(e){}
-    finally{summarySyncBusy=false}
-  },30000);
+  if(summarySyncTimer||!currentMatchId)return;
+  summarySyncTimer=setInterval(syncMatchSummary_,5000);
 }
 
 function stopSummarySync_(){
-  if(summarySyncTimer){
-    clearInterval(summarySyncTimer);
-    summarySyncTimer=null;
-  }
+  if(summarySyncTimer){clearInterval(summarySyncTimer);summarySyncTimer=null}
 }
 
-function renderSummary(s){
-  if(!s||!s.match)return;
-  const m=s.match;
-
-  document.getElementById('matchName').textContent=
-    `${m.venue==='Away'?m.opponent:DATA.teamName} v ${m.venue==='Away'?DATA.teamName:m.opponent}`;
-  document.getElementById('matchMeta').textContent=
-    `${m.date||''}${m.kickoff?' • '+m.kickoff:''}${m.competition?' • '+m.competition:''}`;
-
-  document.getElementById('score').textContent=
-    `${s.scoreFor??0} - ${s.scoreAgainst??0}`;
-
-  const statusEl=document.getElementById('matchStatus');
-  const status=m.status||'Scheduled';
-
-  statusEl.textContent=
-    status==='Completed'?'FULL TIME':
-    status==='Live'?(s.clock&&s.clock.onBreak?'HALF TIME':'LIVE'):
-    'PRE-MATCH';
-
-  statusEl.className=
-    'matchStatus '+
-    (status==='Completed'?'full':(s.clock&&s.clock.onBreak?'half':'live'));
-
-  document.getElementById('preMatchActions').classList.toggle('hidden',status!=='Scheduled');
-  document.getElementById('liveMatchControls').classList.toggle('hidden',status==='Completed');
-  document.getElementById('logEventCard').classList.toggle('hidden',status!=='Live');
-  document.getElementById('finishMatchBtn').classList.toggle('hidden',status!=='Live');
-
-  const isTrial=!!m.isTrial||/^TRIAL/i.test(String(m.competition||''));
-  document.getElementById('trialMatchBanner').classList.toggle('hidden',!isTrial);
-
-  const squad=s.squad||[];
-  const squadNote=document.getElementById('squadTrackingNote');
-  squadNote.textContent=squad.length
-    ? `${squad.length} players in squad`
-    : 'No squad set yet — can be added later';
-
-  renderEvents(s.events||[]);
-  renderLiveAddPlayerOptions_(squad);
-}
-
-function renderLiveAddPlayerOptions_(squad){
-  const box=document.getElementById('liveAddSquadPlayer');
-  const sel=document.getElementById('liveAddPlayerSelect');
-  if(!box||!sel)return;
-
-  const names=new Set(
-    (squad||[]).map(x=>typeof x==='string'?x:(x.player||x.name||''))
-  );
-
-  const available=(DATA.players||[]).filter(p=>!names.has(p.name));
-
-  if(!available.length){
-    box.classList.add('hidden');
-    return;
-  }
-
-  sel.innerHTML=
-    '<option value="">Add player to squad...</option>'+
-    available.map(p=>`<option value="${esc(p.name)}">${esc(p.name)}</option>`).join('');
-
-  box.classList.remove('hidden');
-}
-
-async function addPlayerToLiveSquadNow(){
-  const player=val('liveAddPlayerSelect');
-  if(!player)return toast('Select a player');
-
+async function syncMatchSummary_(){
+  if(!currentMatchId||summarySyncBusy)return;
+  const view=document.getElementById('matchView');
+  if(!view||view.classList.contains('hidden'))return;
+  summarySyncBusy=true;
   try{
-    await call('addPlayerToSquad',PIN,currentMatchId,player);
-    await refreshSummary();
-    toast(player+' added to squad');
-  }catch(e){
-    toast(e.message||'Could not add player');
-  }
-}
-function renderEvents(events){
-  const feed=document.getElementById('eventFeed');
-  if(!events||!events.length){
-    feed.innerHTML='<div class="muted">No events yet</div>';
-    return;
-  }
-
-  feed.innerHTML=[...events].reverse().map(e=>{
-    const min=e.minute?`${esc(e.minute)}' `:'';
-    const main=e.player||e.scorer||e.assist||e.eventType||e.type||'Event';
-    const detail=[
-      e.eventType||e.type||'',
-      e.player&&e.player!==main?e.player:'',
-      e.assist?`Assist: ${e.assist}`:'',
-      e.zone?`Zone ${e.zone}`:'',
-      e.originZone?`Origin ${e.originZone}`:'',
-      e.notes||''
-    ].filter(Boolean).join(' • ');
-
-    return `
-      <div class="event">
-        <div class="score">
-          <div>
-            <b>${min}${esc(main)}</b>
-            <div class="muted">${esc(detail)}</div>
-          </div>
-          ${e.eventId?`
-          <button class="btn secondary" style="min-height:36px;padding:6px 9px;font-size:12px"
-            onclick="editEvent('${escJs(e.eventId)}')">Edit</button>`:''}
-        </div>
-      </div>
-    `;
-  }).join('');
-}
-
-function startEvent(type){
-  if(!currentMatchId)return;
-  draftEvent={type};
-  editingEventId='';
-  selectedZone='';
-  selectedOriginZone='';
-
-  document.getElementById('eventTitle').textContent=type;
-  document.getElementById('eventForm').classList.remove('hidden');
-  document.getElementById('eventFields').innerHTML='';
-  document.getElementById('zoneBlock').classList.add('hidden');
-  document.getElementById('originZoneBlock').classList.add('hidden');
-  document.getElementById('eventNotes').value='';
-
-  const squad=(currentSummary&&currentSummary.squad)||[];
-  const names=squad.map(x=>typeof x==='string'?x:(x.player||x.name||'')).filter(Boolean);
-
-  const playerOptions='<option value="">Select player...</option>'+
-    names.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('');
-
-  if(type==='Goal'){
-    document.getElementById('eventFields').innerHTML=`
-      <select id="evPlayer">${playerOptions}</select><br><br>
-      <select id="evAssist">
-        <option value="">No assist / select assist...</option>
-        ${names.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('')}
-      </select><br><br>
-      <select id="evGoalType">
-        <option value="">Goal type...</option>
-        <option>Open Play</option>
-        <option>Set Piece</option>
-        <option>Corner</option>
-        <option>Free Kick</option>
-        <option>Penalty</option>
-        <option>Own Goal</option>
-        <option>Other</option>
-      </select>
-    `;
-    document.getElementById('zoneBlock').classList.remove('hidden');
-    document.getElementById('originZoneBlock').classList.remove('hidden');
-    renderZonePitch_('pitch',false);
-    renderZonePitch_('pitch2',true);
-  }
-
-  else if(type==='Conceded Goal'){
-    document.getElementById('eventFields').innerHTML=`
-      <select id="evGoalType">
-        <option value="">Goal type...</option>
-        <option>Open Play</option>
-        <option>Set Piece</option>
-        <option>Corner</option>
-        <option>Free Kick</option>
-        <option>Penalty</option>
-        <option>Own Goal</option>
-        <option>Other</option>
-      </select>
-    `;
-  }
-
-  else if(type==='Substitution'){
-    document.getElementById('eventFields').innerHTML=`
-      <select id="evPlayerOff">
-        <option value="">Player off...</option>
-        ${names.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('')}
-      </select><br><br>
-      <select id="evPlayerOn">
-        <option value="">Player on...</option>
-        ${names.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('')}
-      </select>
-    `;
-  }
-
-  else if(type==='Yellow Card'||type==='Red Card'){
-    document.getElementById('eventFields').innerHTML=`
-      <select id="evPlayer">${playerOptions}</select>
-    `;
-  }
-
-  document.getElementById('eventForm').scrollIntoView({behavior:'smooth',block:'start'});
-}
-
-function renderZonePitch_(id,isOrigin){
-  const pitch=document.getElementById(id);
-  pitch.innerHTML='';
-
-  for(let i=1;i<=11;i++){
-    const z=document.createElement('div');
-    z.className=`zone z${i}`;
-    z.textContent='Z'+i;
-    z.onclick=()=>{
-      if(isOrigin)selectedOriginZone=String(i);
-      else selectedZone=String(i);
-
-      [...pitch.querySelectorAll('.zone')].forEach(x=>x.classList.remove('sel'));
-      z.classList.add('sel');
-    };
-    pitch.appendChild(z);
-  }
-}
-
-function cancelEvent(){
-  draftEvent=null;
-  editingEventId='';
-  selectedZone='';
-  selectedOriginZone='';
-  document.getElementById('eventForm').classList.add('hidden');
-}
-
-function useClockMinute(){
-  document.getElementById('minute').value=currentClockMinute_();
-}
-
-function currentClockMinute_(){
-  let sec=clockBaseSeconds||0;
-  if(clockRunningSince){
-    sec+=Math.max(0,Math.floor((Date.now()-clockRunningSince)/1000));
-  }
-
-  const mins=Math.floor(sec/60);
-
-  if(matchHalf===1){
-    if(mins<=45)return String(Math.max(1,mins));
-    return '45+'+(mins-45);
-  }
-
-  const secondHalfMinute=45+mins;
-  if(secondHalfMinute<=90)return String(Math.max(46,secondHalfMinute));
-  return '90+'+(secondHalfMinute-90);
-}
-
-async function saveEvent(){
-  if(eventSaveBusy)return;
-  if(!draftEvent)return;
-
-  const minute=val('minute').trim()||currentClockMinute_();
-  const notes=val('eventNotes');
-  const type=draftEvent.type;
-
-  const event={
-    type,
-    minute,
-    notes
-  };
-
-  if(type==='Goal'){
-    event.player=val('evPlayer');
-    event.assist=val('evAssist');
-    event.goalType=val('evGoalType');
-    event.zone=selectedZone;
-    event.originZone=selectedOriginZone;
-    if(!event.player)return toast('Select the scorer');
-  }
-
-  if(type==='Conceded Goal'){
-    event.goalType=val('evGoalType');
-  }
-
-  if(type==='Substitution'){
-    event.playerOff=val('evPlayerOff');
-    event.playerOn=val('evPlayerOn');
-    if(!event.playerOff||!event.playerOn)return toast('Select both players');
-    if(event.playerOff===event.playerOn)return toast('Choose different players');
-  }
-
-  if(type==='Yellow Card'||type==='Red Card'){
-    event.player=val('evPlayer');
-    if(!event.player)return toast('Select a player');
-  }
-
-  const btn=document.getElementById('eventSaveBtn');
-  eventSaveBusy=true;
-  if(window.pmdSetButtonBusy)pmdSetButtonBusy(btn,true,'Saving…');
-  else{btn.disabled=true;btn.textContent='Saving…'}
-
-  try{
-    if(editingEventId){
-      await call('updateEvent',PIN,currentMatchId,editingEventId,event);
-      toast('Event updated');
-    }else{
-      await call('saveEvent',PIN,currentMatchId,event);
-      toast('Event saved');
+    const s=await call('getMatchSummary',PIN,currentMatchId);
+    currentSummary=s;
+    renderSummary(s);
+    applyClockState_(s.clock);
+    if(s.match&&s.match.status==='Completed'){
+      stopSummarySync_();
+      stopClockSync_();
+      clearSession();
     }
-
-    cancelEvent();
-    await refreshSummary();
-  }catch(e){
-    toast(e.message||'Could not save event');
-  }finally{
-    eventSaveBusy=false;
-    if(window.pmdSetButtonBusy)pmdSetButtonBusy(btn,false);
-    else{btn.disabled=false;btn.textContent='Save Event'}
+  }catch(e){}finally{
+    summarySyncBusy=false;
   }
-}
-
-async function undoLastEvent(){
-  if(!currentMatchId)return;
-  if(!confirm('Undo the most recent event?'))return;
-
-  try{
-    await call('undoLastEvent',PIN,currentMatchId);
-    await refreshSummary();
-    toast('Last event removed');
-  }catch(e){
-    toast(e.message||'Could not undo event');
-  }
-}
-
-async function editEvent(eventId){
-  const events=(currentSummary&&currentSummary.events)||[];
-  const e=events.find(x=>String(x.eventId)===String(eventId));
-  if(!e)return toast('Event not found');
-
-  editingEventId=eventId;
-  startEvent(e.type||e.eventType||'');
-  editingEventId=eventId;
-
-  document.getElementById('minute').value=e.minute||'';
-  document.getElementById('eventNotes').value=e.notes||'';
-
-  if((e.type||e.eventType)==='Goal'){
-    if(exists('evPlayer'))document.getElementById('evPlayer').value=e.player||e.scorer||'';
-    if(exists('evAssist'))document.getElementById('evAssist').value=e.assist||'';
-    if(exists('evGoalType'))document.getElementById('evGoalType').value=e.goalType||'';
-    selectedZone=String(e.zone||'');
-    selectedOriginZone=String(e.originZone||'');
-
-    if(selectedZone){
-      const z=document.querySelector(`#pitch .z${selectedZone}`);
-      if(z)z.classList.add('sel');
-    }
-    if(selectedOriginZone){
-      const z=document.querySelector(`#pitch2 .z${selectedOriginZone}`);
-      if(z)z.classList.add('sel');
-    }
-  }
-
-  if((e.type||e.eventType)==='Conceded Goal'){
-    if(exists('evGoalType'))document.getElementById('evGoalType').value=e.goalType||'';
-  }
-
-  if((e.type||e.eventType)==='Substitution'){
-    if(exists('evPlayerOff'))document.getElementById('evPlayerOff').value=e.playerOff||'';
-    if(exists('evPlayerOn'))document.getElementById('evPlayerOn').value=e.playerOn||'';
-  }
-
-  if((e.type||e.eventType)==='Yellow Card'||(e.type||e.eventType)==='Red Card'){
-    if(exists('evPlayer'))document.getElementById('evPlayer').value=e.player||'';
-  }
-
-  document.getElementById('eventForm').scrollIntoView({behavior:'smooth',block:'start'});
 }
 
 function applyClockState_(clock){
   if(!clock)return;
+  if(matchTimer){clearInterval(matchTimer);matchTimer=null}
 
-  clockBaseSeconds=Number(clock.elapsedSeconds||clock.baseSeconds||0);
-  clockRunningSince=clock.runningSince?new Date(clock.runningSince).getTime():null;
+  clockBaseSeconds=Number(clock.elapsedSeconds||0);
+  clockRunningSince=clock.running?Date.now():null;
   clockOnBreak=!!clock.onBreak;
   matchHalf=Number(clock.half||1);
 
-  updateClockDisplay_();
-
-  if(matchTimer){
-    clearInterval(matchTimer);
-    matchTimer=null;
-  }
-
-  if(clockRunningSince&&!clockOnBreak){
-    matchTimer=setInterval(updateClockDisplay_,1000);
-  }
-
-  const btn=document.getElementById('clockBtn');
-  if(btn){
-    btn.textContent=clockRunningSince&&!clockOnBreak?'Pause':'Start';
-    btn.className='btn '+(clockRunningSince&&!clockOnBreak?'secondary':'green');
-  }
-
-  const htBtn=document.getElementById('htBtn');
-  if(htBtn){
-    htBtn.textContent=clockOnBreak?'Start Second Half':'Half Time';
-  }
-}
-
-function updateClockDisplay_(){
-  let sec=clockBaseSeconds||0;
-  if(clockRunningSince&&!clockOnBreak){
-    sec+=Math.max(0,Math.floor((Date.now()-clockRunningSince)/1000));
-  }
-
-  const m=Math.floor(sec/60);
-  const s=sec%60;
-
-  const el=document.getElementById('clockDisplay');
-  if(el)el.textContent=
-    String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
-
+  const b=document.getElementById('clockBtn');
   const started=document.getElementById('clockStartedAt');
-  if(started){
-    started.textContent=clockRunningSince&&!clockOnBreak
-      ? 'Running'
-      : (clockOnBreak?'Half-time break':'Stopped');
+  if(started)started.textContent=clock.startedAtText?'Started '+clock.startedAtText:'Not started';
+
+  if(clockOnBreak){
+    b.textContent='Half Time';
+    b.className='btn secondary';
+    b.disabled=true;
+  }else if(clockRunningSince){
+    b.textContent='Pause';
+    b.className='btn danger';
+    b.disabled=false;
+    matchTimer=setInterval(renderClock,1000);
+  }else{
+    b.textContent=clock.started?'Resume':'Start';
+    b.className='btn green';
+    b.disabled=false;
+  }
+
+  setHalfTimeButton_(clockOnBreak);
+  renderClock();
+
+  if(clock.finishedAt){
+    stopClockSync_();
+  }else{
+    ensureClockSync_();
   }
 }
+
+function renderClock(){const total=currentElapsedSeconds();const m=Math.floor(total/60),s=total%60;document.getElementById('clockDisplay').textContent=String(m).padStart(2,'0')+':'+String(s).padStart(2,'0')}
 
 async function toggleClock(){
   if(!currentMatchId)return;
-
   try{
-    const running=clockRunningSince&&!clockOnBreak;
-
-    if(running){
-      await call('pauseMatchClock',PIN,currentMatchId);
-    }else{
-      await call('startMatchClock',PIN,currentMatchId);
-    }
-
-    const fresh=await call('getMatchSummary',PIN,currentMatchId);
-    currentSummary=fresh;
-    applyClockState_(fresh.clock);
-  }catch(e){
-    toast(e.message||'Could not update clock');
-  }
+    const clock=await call('toggleMatchClock',PIN,currentMatchId);
+    applyClockState_(clock);
+  }catch(e){}
 }
 
 async function resetClock(){
   if(!currentMatchId)return;
-  if(!confirm('Reset the current half clock?'))return;
-
+  if(!confirm('Reset the shared match clock for everyone?'))return;
   try{
-    await call('resetMatchClock',PIN,currentMatchId);
-    const fresh=await call('getMatchSummary',PIN,currentMatchId);
-    currentSummary=fresh;
-    applyClockState_(fresh.clock);
-    toast('Clock reset');
-  }catch(e){
-    toast(e.message||'Could not reset clock');
+    const clock=await call('resetMatchClock',PIN,currentMatchId);
+    applyClockState_(clock);
+    toast('Shared clock reset');
+  }catch(e){}
+}
+
+function setHalfTimeButton_(onBreak){
+  const htBtn=document.getElementById('htBtn');
+  if(onBreak){
+    htBtn.textContent='Start 2nd Half';
+    htBtn.className='btn green full';
+  }else{
+    htBtn.textContent='Half Time';
+    htBtn.className='btn secondary full';
   }
 }
 
 async function toggleHalfTime(){
   if(!currentMatchId)return;
+  try{
+    const clock=clockOnBreak
+      ? await call('startSecondHalf',PIN,currentMatchId)
+      : await call('enterHalfTime',PIN,currentMatchId);
+    applyClockState_(clock);
+    toast(clock.onBreak?'Half time — shared clock paused':'Second half started at 45:00');
+  }catch(e){}
+}
+
+// Converts the clock into a football-style minute. Normal time is a plain integer;
+// stoppage time is encoded as base + addedMinutes/100 (e.g. 45.02 for "45+2") so the
+// Minute column in the sheet stays a clean, sortable NUMBER throughout — nothing
+// text-based ever gets written there, which keeps reporting tools happy.
+function matchMinuteInfo(){
+  const elapsed=currentElapsedSeconds();
+  if(matchHalf===1){
+    if(elapsed<2700){const v=Math.floor(elapsed/60)+1;return {value:v,label:String(v)}}
+    const added=Math.floor((elapsed-2700)/60)+1;
+    return {value:Math.round((45+added/100)*100)/100,label:'45+'+added};
+  }
+  const rel=elapsed-2700;
+  if(rel<2700){const v=46+Math.floor(rel/60);return {value:v,label:String(v)}}
+  const added=Math.floor((rel-2700)/60)+1;
+  return {value:Math.round((90+added/100)*100)/100,label:'90+'+added};
+}
+// Reverses matchMinuteInfo() for display: given a stored number, reconstruct "45+2"
+// style text if it's a stoppage-time value, otherwise just show the plain minute.
+function formatMinute_(v){
+  const n=Number(v||0);
+  if(Number.isInteger(n))return String(n);
+  const base=Math.floor(n);
+  const added=Math.round((n-base)*100);
+  return base+'+'+added;
+}
+// Lets someone type "45+2" directly into the minute field and still get a clean
+// sortable number back for the backend.
+function parseMinuteInput_(text){
+  text=String(text||'').trim();
+  const m=text.match(/^(\d+)\s*\+\s*(\d+)$/);
+  if(m){const base=Number(m[1]),added=Number(m[2]);return Math.round((base+added/100)*100)/100}
+  const n=Number(text);
+  return isNaN(n)?0:n;
+}
+function useClockMinute(){const mi=matchMinuteInfo();document.getElementById('minute').value=mi.label;toast("Minute set to "+mi.label+"'")}
+function opts(arr,label){return `<option value="">${label}</option>`+arr.map(x=>`<option>${esc(x)}</option>`).join('')}
+
+function optionNames_(names){return names.map(n=>`<option>${esc(n)}</option>`).join('')}
+
+function currentOnPitchNames_(){
+  // Do not lock event entry to a saved starting XI.
+  // The lineup remains useful for team setup/minute calculations, but all active
+  // players stay selectable while recording the match.
+  return (DATA.players||[])
+    .filter(p=>p.active!==false)
+    .map(p=>p.name)
+    .sort((a,b)=>a.localeCompare(b));
+}
+
+function availableSubNames_(){
+  return (DATA.players||[])
+    .filter(p=>p.active!==false)
+    .map(p=>p.name)
+    .sort((a,b)=>a.localeCompare(b));
+}
+
+function renderLiveSquadAdder_(){
+  const wrap=document.getElementById('liveAddSquadPlayer');
+  const sel=document.getElementById('liveAddPlayerSelect');
+  if(!wrap||!sel)return;
+
+  const squad=(currentSummary&&currentSummary.squad)||[];
+  const live=currentSummary&&currentSummary.match&&currentSummary.match.status==='Live';
+  if(!live||!squad.length){
+    wrap.classList.add('hidden');
+    return;
+  }
+
+  const inSquad=new Set(squad.map(p=>p.player));
+  const missing=(DATA.players||[])
+    .filter(p=>p.active!==false&&!inSquad.has(p.name))
+    .map(p=>p.name)
+    .sort((a,b)=>a.localeCompare(b));
+
+  if(!missing.length){
+    wrap.classList.add('hidden');
+    return;
+  }
+
+  sel.innerHTML='<option value="">Add player to squad...</option>'+optionNames_(missing);
+  wrap.classList.remove('hidden');
+}
+
+async function addPlayerToLiveSquadNow(){
+  if(!currentMatchId)return toast('No match selected');
+  const player=val('liveAddPlayerSelect');
+  if(!player)return toast('Select a player');
+  currentSummary=await call('addPlayerToLiveSquad',PIN,currentMatchId,player);
+  renderSummary(currentSummary);
+  applyClockState_(currentSummary.clock);
+  toast(player+' added to the squad as a substitute');
+  if(draftEvent&&draftEvent.eventType==='Substitution'&&!document.getElementById('eventForm').classList.contains('hidden')){
+    buildEventFields('Substitution');
+  }
+}
+
+function startEvent(type){
+  editingEventId='';
+  eventSaveBusy=false;
+  if(exists('eventSaveBtn')){
+    document.getElementById('eventSaveBtn').disabled=false;
+    document.getElementById('eventSaveBtn').textContent='Save Event';
+  }
+  draftEvent={matchId:currentMatchId,eventType:type,team:type==='Conceded Goal'?'Opposition':'Perranporth'};
+  document.getElementById('minute').value=matchMinuteInfo().label;
+  selectedZone='';
+  selectedOriginZone='';
+  document.getElementById('eventTitle').textContent=type;
+  document.getElementById('eventForm').classList.remove('hidden');
+  document.getElementById('zoneBlock').classList.add('hidden');
+  document.getElementById('originZoneBlock').classList.add('hidden');
+  document.getElementById('eventNotes').value='';
+  buildEventFields(type);
+  if(['Goal','Conceded Goal'].includes(type)){
+    document.getElementById('zoneBlock').classList.remove('hidden');
+    buildPitch('pitch',false);
+  }
+  if(type==='Goal'){
+    document.getElementById('originZoneBlock').classList.remove('hidden');
+    buildPitch('pitch2',true);
+  }
+}
+
+function buildEventFields(type){
+  const f=document.getElementById('eventFields');
+  const onPitch=optionNames_(currentOnPitchNames_());
+
+  if(type==='Goal'){
+    f.innerHTML=`<select id="evPlayer"><option value="">Scorer</option>${onPitch}</select><br><br><select id="evSecond"><option value="">Assist / no assist</option>${onPitch}</select><br><br><div class="grid2"><select id="evPhase">${opts(['Open Play','Counter Attack','Corner','Free Kick','Penalty','Throw-in','Other'],'Goal type')}</select><input id="evTouches" type="number" min="1" placeholder="Touches"></div>`;
+  }else if(type==='Conceded Goal'){
+    f.innerHTML=`<select id="evPhase">${opts(['Open Play','Counter Attack','Corner','Free Kick','Penalty','Throw-in','Other'],'Goal type')}</select>`;
+  }else if(type==='Substitution'){
+    const off=optionNames_(currentOnPitchNames_());
+    const on=optionNames_(availableSubNames_());
+    f.innerHTML=`<div class="grid2"><select id="evPlayer"><option value="">Player off</option>${off}</select><select id="evSecond"><option value="">Player on</option>${on}</select></div>`;
+  }else{
+    f.innerHTML=`<select id="evPlayer"><option value="">Player</option>${onPitch}</select><br><br><input id="evReason" placeholder="Reason">`;
+  }
+}
+function buildPitch(id,origin){const p=document.getElementById(id);p.innerHTML='';for(let z=1;z<=11;z++){const d=document.createElement('div');d.className='zone z'+z;d.textContent=z;d.onclick=()=>pickZone(z,origin,id);p.appendChild(d)}}
+function pickZone(z,origin,id){if(origin)selectedOriginZone='Zone '+z;else selectedZone='Zone '+z;document.querySelectorAll('#'+id+' .zone').forEach(x=>x.classList.remove('sel'));document.querySelector('#'+id+' .z'+z).classList.add('sel')}
+function ensureSelectValue_(id,value){
+  if(!value||!exists(id))return;
+  const el=document.getElementById(id);
+  if(![...el.options].some(o=>o.value===value)){
+    const opt=document.createElement('option');
+    opt.value=value;opt.textContent=value;
+    el.appendChild(opt);
+  }
+  el.value=value;
+}
+
+function editEvent(eventId){
+  const e=(currentSummary&&currentSummary.events||[]).find(x=>x.eventId===eventId);
+  if(!e)return toast('Event not found');
+
+  editingEventId=e.eventId;
+  draftEvent={
+    eventId:e.eventId,
+    matchId:e.matchId,
+    eventType:e.type,
+    team:e.team||'Perranporth'
+  };
+
+  selectedZone=e.zone||'';
+  selectedOriginZone=e.originZone||'';
+
+  document.getElementById('minute').value=formatMinute_(e.minute);
+  document.getElementById('eventTitle').textContent='Edit '+e.type;
+  eventSaveBusy=false;
+  if(exists('eventSaveBtn')){
+    document.getElementById('eventSaveBtn').disabled=false;
+    document.getElementById('eventSaveBtn').textContent='Save Changes';
+  }
+  document.getElementById('eventForm').classList.remove('hidden');
+  document.getElementById('zoneBlock').classList.add('hidden');
+  document.getElementById('originZoneBlock').classList.add('hidden');
+
+  buildEventFields(e.type);
+
+  ensureSelectValue_('evPlayer',e.player||'');
+  ensureSelectValue_('evSecond',e.secondaryPlayer||'');
+  ensureSelectValue_('evPhase',e.goalType||'');
+  if(exists('evTouches'))document.getElementById('evTouches').value=e.touches||'';
+  if(exists('evReason'))document.getElementById('evReason').value=e.cardReason||'';
+  document.getElementById('eventNotes').value=e.notes||'';
+
+  if(['Goal','Conceded Goal'].includes(e.type)){
+    document.getElementById('zoneBlock').classList.remove('hidden');
+    buildPitch('pitch',false);
+    const z=Number(String(selectedZone).replace(/\D/g,''));
+    if(z)pickZone(z,false,'pitch');
+  }
+
+  if(e.type==='Goal'){
+    document.getElementById('originZoneBlock').classList.remove('hidden');
+    buildPitch('pitch2',true);
+    const oz=Number(String(selectedOriginZone).replace(/\D/g,''));
+    if(oz)pickZone(oz,true,'pitch2');
+  }
+
+  document.getElementById('eventForm').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function cancelEvent(){
+  editingEventId='';
+  draftEvent=null;
+  eventSaveBusy=false;
+  if(exists('eventSaveBtn')){
+    document.getElementById('eventSaveBtn').disabled=false;
+    document.getElementById('eventSaveBtn').textContent='Save Event';
+  }
+  document.getElementById('eventForm').classList.add('hidden');
+}
+
+async function saveEvent(){
+  // Prevent a double tap/click from creating the same event twice.
+  if(eventSaveBusy)return;
+
+  const type=draftEvent.eventType;
+  draftEvent.minute=parseMinuteInput_(val('minute'));
+  draftEvent.player=exists('evPlayer')?val('evPlayer'):'';
+  draftEvent.secondaryPlayer=exists('evSecond')?val('evSecond'):'';
+  draftEvent.goalType=exists('evPhase')?val('evPhase'):'';
+  draftEvent.touches=exists('evTouches')?val('evTouches'):'';
+  draftEvent.cardReason=exists('evReason')?val('evReason'):'';
+  draftEvent.zone=selectedZone;
+  draftEvent.originZone=selectedOriginZone;
+  draftEvent.notes=val('eventNotes');
+
+  if(!draftEvent.minute)return toast('Enter a valid minute');
+  if(type==='Goal'&&!draftEvent.player)return toast('Select a scorer');
+  if((type==='Yellow Card'||type==='Red Card')&&!draftEvent.player)return toast('Select a player');
+  if(type==='Substitution'){
+    if(!draftEvent.player||!draftEvent.secondaryPlayer)return toast('Select both players');
+    if(draftEvent.player===draftEvent.secondaryPlayer)return toast('Player off and player on must be different');
+  }
+  if(type==='Goal'&&draftEvent.secondaryPlayer&&draftEvent.secondaryPlayer===draftEvent.player)return toast('Scorer and assist cannot be the same');
+
+  eventSaveBusy=true;
+  const saveBtn=exists('eventSaveBtn')?document.getElementById('eventSaveBtn'):null;
+  if(saveBtn)saveBtn.disabled=true;
 
   try{
-    if(clockOnBreak){
-      await call('startSecondHalf',PIN,currentMatchId);
-      toast('Second half started');
+    if(editingEventId){
+      draftEvent.eventId=editingEventId;
+      currentSummary=await call('updateEvent',PIN,draftEvent);
     }else{
-      await call('setHalfTime',PIN,currentMatchId);
-      toast('Half time');
+      currentSummary=await call('logEvent',PIN,draftEvent);
     }
 
-    const fresh=await call('getMatchSummary',PIN,currentMatchId);
-    currentSummary=fresh;
-    renderSummary(fresh);
-    applyClockState_(fresh.clock);
+    const wasEditing=!!editingEventId;
+    cancelEvent();
+    renderSummary(currentSummary);
+    applyClockState_(currentSummary.clock);
+    toast(wasEditing?'Event updated':'Saved');
   }catch(e){
-    toast(e.message||'Could not update half time');
+    // If the save genuinely failed, allow one deliberate retry.
+    eventSaveBusy=false;
+    if(saveBtn)saveBtn.disabled=false;
+  }
+}
+
+async function refreshSummary(){currentSummary=await call('getMatchSummary',PIN,currentMatchId);renderSummary(currentSummary);applyClockState_(currentSummary.clock)}
+async function undoLastEvent(){if(!confirm('Undo the most recent event?'))return;currentSummary=await call('deleteLastEvent',PIN,currentMatchId);renderSummary(currentSummary)}
+function renderSummary(s){
+  const isTrial=String((s.match&&s.match.source)||'').toLowerCase()==='trial';
+  if(exists('trialMatchBanner'))document.getElementById('trialMatchBanner').classList.toggle('hidden',!isTrial);
+
+  const m=s.match||{};
+  document.getElementById('matchName').textContent=(m.opponent||'Match')+' ('+(m.venue||'')+')';
+  document.getElementById('matchMeta').textContent=[m.date,m.competition].filter(Boolean).join(' • ');
+  document.getElementById('score').textContent=(m.ourScore||0)+' - '+(m.oppScore||0);
+  const squadNote=document.getElementById('squadTrackingNote');
+  if(squadNote){
+    squadNote.textContent=(s.squad&&s.squad.length)
+      ? `${s.squad.length} players in saved squad`
+      : 'No squad selected — all active players available';
+  }
+  renderLiveSquadAdder_();
+  document.getElementById('eventFeed').innerHTML=s.events.length?s.events.map(e=>{
+    const detail=[
+      e.player||'',
+      e.secondaryPlayer?(' / '+e.secondaryPlayer):'',
+      e.zone?(' • '+e.zone):'',
+      e.originZone?(' • origin '+e.originZone):''
+    ].join('');
+    return `<div class="event">
+      <div class="score">
+        <div><b>${formatMinute_(e.minute)}'</b> ${esc(e.type)}${detail?' — '+esc(detail):''}</div>
+        <button class="btn secondary" style="padding:7px 11px" onclick="editEvent('${escJs(e.eventId)}')">Edit</button>
+      </div>
+      ${e.notes?`<div class="muted" style="margin-top:4px">${esc(e.notes)}</div>`:''}
+    </div>`;
+  }).join(''):'No events yet';
+
+  const status=document.getElementById('matchStatus');
+  const logCard=document.getElementById('logEventCard');
+  const finishBtn=document.getElementById('finishMatchBtn');
+  const preMatch=document.getElementById('preMatchActions');
+  const liveControls=document.getElementById('liveMatchControls');
+
+  const completed=m.status==='Completed';
+  const scheduled=!completed&&m.status!=='Live';
+
+  if(completed){
+    status.textContent='FULL TIME';
+    status.className='matchStatus full';
+    if(preMatch)preMatch.classList.add('hidden');
+    if(liveControls)liveControls.classList.add('hidden');
+    if(logCard)logCard.classList.add('hidden');
+    if(finishBtn){finishBtn.textContent='Reopen Match / Undo Full Time';finishBtn.disabled=false;finishBtn.className='btn danger full';finishBtn.onclick=reopenCurrentMatch}
+  }else if(scheduled){
+    status.textContent='READY';
+    status.className='matchStatus half';
+    if(preMatch)preMatch.classList.remove('hidden');
+    if(liveControls)liveControls.classList.add('hidden');
+    if(logCard)logCard.classList.add('hidden');
+    if(finishBtn){finishBtn.textContent='Finish Match';finishBtn.disabled=true;finishBtn.className='btn secondary full';finishBtn.onclick=showFinishMatchConfirm}
+  }else{
+    status.textContent=clockOnBreak?'HALF TIME':'LIVE';
+    status.className='matchStatus '+(clockOnBreak?'half':'live');
+    if(preMatch)preMatch.classList.add('hidden');
+    if(liveControls)liveControls.classList.remove('hidden');
+    if(logCard)logCard.classList.remove('hidden');
+    if(finishBtn){finishBtn.textContent='Finish Match';finishBtn.disabled=false;finishBtn.className='btn danger full';finishBtn.onclick=showFinishMatchConfirm}
   }
 }
 
 function showFinishMatchConfirm(){
+  const m=currentSummary&&currentSummary.match;
+  if(m&&m.status==='Completed')return toast('This match is already finished');
+  if(!m||m.status!=='Live')return toast('The match has not started yet');
   document.getElementById('finishModal').classList.remove('hidden');
 }
 
@@ -1774,708 +2084,182 @@ function hideFinishMatchConfirm(){
   document.getElementById('finishModal').classList.add('hidden');
 }
 
-async function finishMatch(){
-  if(!currentMatchId)return;
+async function refreshAdminMatches_(){
+  DATA.matches=await call('getMatches',PIN,true);
+  populateMatches();
+}
 
-  const btn=document.getElementById('confirmFinishBtn');
-  if(window.pmdSetButtonBusy)pmdSetButtonBusy(btn,true,'Finishing…');
-  else{btn.disabled=true;btn.textContent='Finishing…'}
+async function reopenCurrentMatch(){
+  if(!currentMatchId)return toast('No match selected');
+  if(!confirm('Undo Full Time and reopen this match for editing? The clock will stay paused at the recorded Full Time.'))return;
 
   try{
-    await call('finishMatch',PIN,currentMatchId);
-    hideFinishMatchConfirm();
-    clearSession();
+    currentSummary=await call('reopenMatch',PIN,currentMatchId);
+    await refreshAdminMatches_();
+    document.getElementById('matchSelect').value=currentMatchId;
+    updateSelectedMatchInfo();
 
-    currentSummary=await call('getMatchSummary',PIN,currentMatchId);
     renderSummary(currentSummary);
     applyClockState_(currentSummary.clock);
-
-    DATA.matches=await call('getMatches',PIN,true);
-    populateMatches();
-
-    toast('Match finished');
-  }catch(e){
-    toast(e.message||'Could not finish match');
-  }finally{
-    if(window.pmdSetButtonBusy)pmdSetButtonBusy(btn,false);
-    else{btn.disabled=false;btn.textContent='Finish Match'}
-  }
-}
-
-async function showPastMatches(){
-  showView('pastMatches');
-  const el=document.getElementById('pastMatchesList');
-  el.textContent='Loading…';
-
-  try{
-    const matches=await call('getPastMatches',PIN);
-    if(!matches.length){
-      el.innerHTML='<div class="muted">No past matches.</div>';
-      return;
-    }
-
-    el.innerHTML=matches.map(m=>`
-      <div class="event" style="cursor:pointer" onclick="openPastMatch('${escJs(m.matchId)}')">
-        <div class="score">
-          <div>
-            <b>${esc(m.date)} — ${esc(m.opponent)}</b>
-            <div class="muted">${esc(m.competition||'')} • ${esc(m.venue||'')}</div>
-          </div>
-          <strong style="font-size:20px">${esc(m.scoreFor??'')}-${esc(m.scoreAgainst??'')}</strong>
-        </div>
-      </div>
-    `).join('');
-  }catch(e){
-    el.textContent=e.message||'Could not load matches';
-  }
-}
-
-async function openPastMatch(matchId){
-  currentPastMatchId=matchId;
-
-  try{
-    const s=await call('getFullMatchSummary',PIN,matchId);
-    document.getElementById('pmName').textContent=
-      `${s.match.date||''} — ${s.match.opponent||''}`;
-    document.getElementById('pmMeta').textContent=
-      `${s.match.competition||''} • ${s.match.venue||''}`;
-    document.getElementById('pmScore').textContent=
-      `${s.scoreFor??0} - ${s.scoreAgainst??0}`;
-
-    const feed=document.getElementById('pmEventFeed');
-    const events=s.events||[];
-
-    feed.innerHTML=events.length
-      ? events.map(e=>`
-          <div class="event">
-            <b>${e.minute?esc(e.minute)+"' ":''}${esc(e.type||e.eventType||'Event')}</b>
-            <div class="muted">${esc([
-              e.player||e.scorer||'',
-              e.assist?`Assist: ${e.assist}`:'',
-              e.notes||''
-            ].filter(Boolean).join(' • '))}</div>
-          </div>
-        `).join('')
-      : '<div class="muted">No events</div>';
-
-    showView('pastMatch');
-  }catch(e){
-    toast(e.message||'Could not load match');
-  }
-}
-
-async function editPastMatchSquad(){
-  if(!currentPastMatchId)return;
-  currentMatchId=currentPastMatchId;
-  showView('squad');
-  await loadSquadEditor_();
+    saveSession();
+    ensureSummarySync_();
+    toast('Match reopened for editing — clock remains paused');
+  }catch(e){}
 }
 
 async function reopenPastMatch(){
-  if(!currentPastMatchId)return;
-  if(!confirm('Reopen this completed match?'))return;
+  if(!currentPastMatchId)return toast('No match selected');
+  if(!confirm('Undo Full Time and reopen this match for editing? The clock will stay paused at the recorded Full Time.'))return;
 
   try{
-    await call('reopenMatch',PIN,currentPastMatchId);
     currentMatchId=currentPastMatchId;
-    currentSummary=await call('getMatchSummary',PIN,currentMatchId);
+    currentSummary=await call('reopenMatch',PIN,currentMatchId);
+
+    await refreshAdminMatches_();
+    document.getElementById('matchSelect').value=currentMatchId;
+    updateSelectedMatchInfo();
+
     showView('match');
     renderSummary(currentSummary);
     applyClockState_(currentSummary.clock);
     saveSession();
-    toast('Match reopened');
-  }catch(e){
-    toast(e.message||'Could not reopen match');
-  }
+    toast('Match reopened for editing — clock remains paused');
+  }catch(e){}
 }
 
-function returnToCurrentMatch(){
-  if(currentMatchId){
-    showView('match');
-    if(currentSummary)renderSummary(currentSummary);
+async function finishMatch(){
+  hideFinishMatchConfirm();
+  const btn=document.getElementById('confirmFinishBtn');
+  if(btn){btn.disabled=true;btn.textContent='Finishing...'}
+  try{
+    if(matchTimer){clearInterval(matchTimer);matchTimer=null}
+    stopClockSync_();
+    stopSummarySync_();
+    currentSummary=await call('finishMatch',PIN,currentMatchId);
+    renderSummary(currentSummary);
+    applyClockState_(currentSummary.clock);
+    await refreshAdminMatches_();
+    toast('Match completed — Full Time');
+    clearSession();
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent='Finish Match'}
+  }
+}
+function buildReportText_(summary){
+  const m=summary.match||{};
+  const events=summary.events||[];
+  const squad=summary.squad||[];
+
+  const ourScore=Number(m.ourScore||0);
+  const oppScore=Number(m.oppScore||0);
+  const resultWord=ourScore>oppScore?'win':ourScore<oppScore?'loss':'draw';
+
+  // Count goals/cards for each Perranporth player.
+  const playerMarks={};
+  function marksFor_(name){
+    if(!playerMarks[name])playerMarks[name]={goals:0,yellows:0,reds:0};
+    return playerMarks[name];
+  }
+
+  events.forEach(e=>{
+    if(!e.player||e.team==='Opposition')return;
+    const marks=marksFor_(e.player);
+    if(e.type==='Goal')marks.goals++;
+    if(e.type==='Yellow Card')marks.yellows++;
+    if(e.type==='Red Card')marks.reds++;
+  });
+
+  function decoratedPlayer_(name){
+    const marks=playerMarks[name]||{goals:0,yellows:0,reds:0};
+    const icons=[];
+    if(marks.goals)icons.push('⚽️'.repeat(marks.goals));
+    if(marks.yellows)icons.push('🟨'.repeat(marks.yellows));
+    if(marks.reds)icons.push('🟥'.repeat(marks.reds));
+    return `${name}${icons.length?' '+icons.join(' '):''}`;
+  }
+
+  const starters=squad.filter(p=>p.status==='Starter'||p.starter);
+  const subs=squad.filter(p=>p.status==='Sub'&&!p.starter);
+
+  // A substitute counts as used once they have appeared as the player coming on.
+  const usedSubNames=new Set(
+    events
+      .filter(e=>e.type==='Substitution'&&e.secondaryPlayer)
+      .map(e=>e.secondaryPlayer)
+  );
+
+  const usedSubs=subs.filter(p=>usedSubNames.has(p.player)||String(p.notes||'').toLowerCase().includes('used sub'));
+  const unusedSubs=subs.filter(p=>!usedSubNames.has(p.player)&&!String(p.notes||'').toLowerCase().includes('used sub'));
+
+  const lines=[];
+
+  if(m.competition)lines.push(`*${m.competition}*`);
+  lines.push(m.opponent||'Opponent');
+  lines.push(`${ourScore}-${oppScore} ${resultWord}`);
+  lines.push('');
+
+  lines.push('👥 *Starting lineup*');
+  if(starters.length){
+    starters.forEach(p=>lines.push(decoratedPlayer_(p.player)));
   }else{
-    showView('home');
+    lines.push('No starting lineup saved');
   }
-}
-async function showSeasonStats(){
-  showView('stats');
-  const el=document.getElementById('statsTable');
-  el.textContent='Loading…';
 
-  try{
-    const stats=await call('getSeasonStats',PIN);
-    const rows=Array.isArray(stats)?stats:(stats.players||stats.rows||[]);
-
-    if(!rows.length){
-      el.innerHTML='<div class="muted">No season stats available.</div>';
-      return;
-    }
-
-    el.innerHTML=`
-      <div style="overflow:auto">
-        <table style="width:100%;border-collapse:collapse;font-size:13px">
-          <thead>
-            <tr>
-              <th style="text-align:left;padding:8px;border-bottom:1px solid #dfe7ed">Player</th>
-              <th style="padding:8px;border-bottom:1px solid #dfe7ed">Apps</th>
-              <th style="padding:8px;border-bottom:1px solid #dfe7ed">Mins</th>
-              <th style="padding:8px;border-bottom:1px solid #dfe7ed">G</th>
-              <th style="padding:8px;border-bottom:1px solid #dfe7ed">A</th>
-              <th style="padding:8px;border-bottom:1px solid #dfe7ed">YC</th>
-              <th style="padding:8px;border-bottom:1px solid #dfe7ed">RC</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${rows.map(r=>`
-              <tr>
-                <td style="padding:8px;border-bottom:1px solid #edf1f4"><b>${esc(r.player||r.name||'')}</b></td>
-                <td style="text-align:center;padding:8px;border-bottom:1px solid #edf1f4">${esc(r.appearances??r.apps??0)}</td>
-                <td style="text-align:center;padding:8px;border-bottom:1px solid #edf1f4">${esc(r.minutes??0)}</td>
-                <td style="text-align:center;padding:8px;border-bottom:1px solid #edf1f4">${esc(r.goals??0)}</td>
-                <td style="text-align:center;padding:8px;border-bottom:1px solid #edf1f4">${esc(r.assists??0)}</td>
-                <td style="text-align:center;padding:8px;border-bottom:1px solid #edf1f4">${esc(r.yellowCards??r.yellows??0)}</td>
-                <td style="text-align:center;padding:8px;border-bottom:1px solid #edf1f4">${esc(r.redCards??r.reds??0)}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      </div>
-    `;
-  }catch(e){
-    el.textContent=e.message||'Could not load season stats';
+  if(usedSubs.length){
+    lines.push('');
+    lines.push('*Subs used*');
+    usedSubs.forEach(p=>lines.push(decoratedPlayer_(p.player)));
   }
-}
 
+  if(unusedSubs.length){
+    lines.push('');
+    lines.push('*Subs unused*');
+    unusedSubs.forEach(p=>lines.push(decoratedPlayer_(p.player)));
+  }
+
+  return lines.join('\n');
+}
 async function shareResult(matchId){
-  if(!matchId)return;
-
-  try{
-    const text=await call('buildShareResultText',PIN,matchId);
-
-    if(navigator.share){
-      try{
-        await navigator.share({text});
-        return;
-      }catch(e){
-        if(e&&e.name==='AbortError')return;
-      }
-    }
-
-    await navigator.clipboard.writeText(text);
-    toast('Result copied');
-  }catch(e){
-    try{
-      const summary=await call('getMatchSummary',PIN,matchId);
-      const m=summary.match||{};
-      const text=
-        `${m.venue==='Away'?m.opponent:DATA.teamName} ${summary.scoreFor??0}-${summary.scoreAgainst??0} ${m.venue==='Away'?DATA.teamName:m.opponent}`;
-      await navigator.clipboard.writeText(text);
-      toast('Result copied');
-    }catch(err){
-      toast(err.message||'Could not share result');
-    }
-  }
+  if(!matchId)return toast('No match selected');
+  let summary;try{summary=await call('getFullMatchSummary',PIN,matchId)}catch(e){return}
+  const text=buildReportText_(summary);
+  if(navigator.share){try{await navigator.share({text});return}catch(e){}}
+  if(navigator.clipboard&&navigator.clipboard.writeText){try{await navigator.clipboard.writeText(text);toast('Result copied — paste it into WhatsApp');return}catch(e){}}
+  prompt('Copy this result:',text);
 }
-
 async function showVotingAdmin(){
   showView('votingAdmin');
-
-  const select=document.getElementById('votingMatchSelect');
-  const matches=await call('getVotingMatches',PIN);
-
-  select.innerHTML='<option value="">Select match...</option>'+
-    matches.map(m=>`
-      <option value="${esc(m.matchId)}">
-        ${esc(m.date)} — ${esc(m.opponent)}
-      </option>
-    `).join('');
-
-  if(matches.length)select.value=matches[0].matchId;
-
-  select.onchange=async()=>{
-    await updateVotingAdminStatus_();
-  };
-
-  await updateVotingAdminStatus_();
-
-  const link=location.origin+location.pathname.replace(/match2\.html$/,'vote.html');
-  document.getElementById('playerVotingLink').value=link;
+  const d=await call('getVotingAdminData',PIN);
+  document.getElementById('votingMatchSelect').innerHTML=d.matches.map(m=>`<option value="${esc(m.matchId)}">${esc(m.date)} — ${esc(m.opponent)} (${esc(m.venue)})</option>`).join('');
+  if(d.openMatchId)document.getElementById('votingMatchSelect').value=d.openMatchId;
+  document.getElementById('votingStatus').innerHTML=d.votingOpen?'<span class="pill">Voting OPEN</span> '+esc(d.matchName):'<span class="pill">Voting CLOSED</span>';
+  document.getElementById('playerVotingLink').value=d.votingUrl||'';
 }
-
-async function updateVotingAdminStatus_(){
-  const id=val('votingMatchSelect');
-  const status=document.getElementById('votingStatus');
-  const results=document.getElementById('votingResults');
-
-  results.classList.add('hidden');
-
-  if(!id){
-    status.innerHTML='<div class="muted">Select a match.</div>';
-    return;
-  }
-
-  try{
-    const s=await call('getVotingAdminStatus',PIN,id);
-
-    status.innerHTML=`
-      <div class="score">
-        <div>
-          <b>${esc(s.opponent||'')}</b>
-          <div class="muted">${esc(s.date||'')} ${s.competition?'• '+esc(s.competition):''}</div>
-        </div>
-        <span class="pill">${s.open?'OPEN':'CLOSED'}</span>
-      </div>
-      <div class="subsMatchSummary">
-        <span class="pill">Ballots: ${esc(s.ballotsReceived??0)}</span>
-        <span class="pill">Eligible: ${esc(s.eligibleVoters??0)}</span>
-      </div>
-    `;
-  }catch(e){
-    status.textContent=e.message||'Could not load voting status';
-  }
-}
-
-async function openVotingForSelected(){
-  const id=val('votingMatchSelect');
-  if(!id)return toast('Select a match');
-
-  try{
-    await call('openVoting',PIN,id);
-    await updateVotingAdminStatus_();
-    toast('Voting opened');
-  }catch(e){
-    toast(e.message||'Could not open voting');
-  }
-}
-
-async function closeVotingNow(){
-  const id=val('votingMatchSelect');
-  if(!id)return toast('Select a match');
-  if(!confirm('Close voting for this match?'))return;
-
-  try{
-    await call('closeVoting',PIN,id);
-    await updateVotingAdminStatus_();
-    toast('Voting closed');
-  }catch(e){
-    toast(e.message||'Could not close voting');
-  }
-}
-
-async function showVotingResults(){
-  const id=val('votingMatchSelect');
-  if(!id)return toast('Select a match');
-
-  const box=document.getElementById('votingResults');
-  box.classList.remove('hidden');
-  box.innerHTML='<div class="muted">Loading…</div>';
-
-  try{
-    const r=await call('getVotingResults',PIN,id);
-    const top=r.top3||r.top||[];
-    const dotd=r.dotd||r.dickOfTheDay||null;
-    const voted=r.voted||[];
-    const outstanding=r.outstanding||[];
-
-    box.innerHTML=`
-      <h2>Voting Results</h2>
-
-      <div class="podium">
-        ${top.map((x,i)=>`
-          <div class="row">
-            <span>${i+1}. ${esc(x.player||x.name||'')}</span>
-            <span>${esc(x.points??0)} pts</span>
-          </div>
-        `).join('')}
-      </div>
-
-      <div class="dotd" style="margin-top:14px">
-        <b>Dick of the Day</b>
-        <div style="margin-top:5px">${dotd?esc(dotd.player||dotd.name||''):'No result yet'}</div>
-        ${dotd&&Array.isArray(dotd.reasons)?dotd.reasons.map(x=>`<div class="reason">${esc(x)}</div>`).join(''):''}
-      </div>
-
-      <div style="margin-top:14px">
-        <b>Voted (${voted.length})</b>
-        <div class="muted">${voted.length?voted.map(esc).join(', '):'None yet'}</div>
-      </div>
-
-      <div style="margin-top:10px">
-        <b>Still to vote (${outstanding.length})</b>
-        <div class="muted">${outstanding.length?outstanding.map(esc).join(', '):'Everyone has voted'}</div>
-      </div>
-    `;
-  }catch(e){
-    box.textContent=e.message||'Could not load results';
-  }
-}
-
 async function copyVotingLink(){
-  const link=val('playerVotingLink');
-  if(!link)return;
-
+  const el=document.getElementById('playerVotingLink');
+  const link=el.value;
+  if(!link)return toast('Voting link unavailable');
   try{
     await navigator.clipboard.writeText(link);
     toast('Voting link copied');
-  }catch(e){
-    document.getElementById('playerVotingLink').select();
+  }catch(err){
+    el.focus();
+    el.select();
     document.execCommand('copy');
     toast('Voting link copied');
   }
 }
-
-let subsData=null;
-let subsView='confirm';
-
-async function showSubsTracker(){
-  showView('subsTracker');
-  document.getElementById('subsTrackerSummary').innerHTML='<div class="muted">Loading…</div>';
-  document.getElementById('subsTrackerConfirmView').innerHTML='';
-  document.getElementById('subsTrackerPlayerView').innerHTML='';
-  document.getElementById('subsTrackerMatchView').innerHTML='';
-  document.getElementById('subsTrackerOwedView').innerHTML='';
-
-  try{
-    subsData=await call('getSubsTrackerData',PIN);
-    renderSubsTracker_();
-  }catch(e){
-    document.getElementById('subsTrackerSummary').textContent=
-      e.message||'Could not load subs tracker';
-  }
+async function openVotingForSelected(){const id=val('votingMatchSelect');if(!id)return toast('Select a match');await call('openVoting',PIN,id);toast('Voting opened');showVotingAdmin()}
+async function closeVotingNow(){await call('closeVoting',PIN);toast('Voting closed');showVotingAdmin()}
+async function showVotingResults(){
+  const id=val('votingMatchSelect');
+  if(!id)return toast('Select a match');
+  const s=await call('getVotingSnapshot',PIN,id);
+  const box=document.getElementById('votingResults');
+  box.classList.remove('hidden');
+  const medals={1:'🥇',2:'🥈',3:'🥉'};
+  box.innerHTML=`<h2>${esc(s.matchName)}</h2><div class="muted">${s.ballots} ballots</div><h3>Top 3</h3><div class="podium">${s.top3.map(x=>`<div class="row"><span>${medals[x.rank]||''} ${x.joint?'Joint ':''}${x.rank}${x.rank===1?'st':x.rank===2?'nd':x.rank===3?'rd':'th'} — ${esc(x.player)}</span><span><b>${x.score}</b> <span class="muted">(${x.three}×3, ${x.two}×2, ${x.one}×1)</span></span></div>`).join('')||'No votes yet'}</div><div class="muted" style="margin-top:6px">Countback: total points → most 3-point votes → most 2-point votes → most 1-point votes. Only then is it tied.</div><h3>Dick of the Day</h3>${s.dotd.map(x=>`<div class="dotd"><b>${esc(x.player)} — ${x.votes}</b>${x.reasons.map(r=>`<div class="reason">${esc(r)}</div>`).join('')}</div>`).join('')||'No DOTD votes'}<div class="muted" style="margin-top:8px">Valid DOTD votes: ${s.dotdValidVotes}</div><h3>Who's voted</h3><div>${s.voters.map(x=>`<span class="pill">${esc(x)}</span>`).join('')||'None yet'}</div><h3>Still to vote</h3><div>${s.stillToVote.map(x=>`<span class="pill">${esc(x)}</span>`).join('')||'Everyone has voted'}</div>`;
 }
-
-function setSubsView(view){
-  subsView=view;
-
-  ['confirm','player','match','owed'].forEach(v=>{
-    const tab=document.getElementById(
-      v==='confirm'?'subsTabConfirm':
-      v==='player'?'subsTabPlayer':
-      v==='match'?'subsTabMatch':
-      'subsTabOwed'
-    );
-
-    tab.className='btn '+(v===view?'active':'secondary');
-
-    const box=document.getElementById(
-      v==='confirm'?'subsTrackerConfirmView':
-      v==='player'?'subsTrackerPlayerView':
-      v==='match'?'subsTrackerMatchView':
-      'subsTrackerOwedView'
-    );
-
-    box.classList.toggle('hidden',v!==view);
-  });
-}
-
-function renderSubsTracker_(){
-  if(!subsData)return;
-
-  const totalDue=Number(subsData.totalDue||0);
-  const totalPaid=Number(subsData.totalPaid||0);
-  const outstanding=Math.max(0,totalDue-totalPaid);
-
-  document.getElementById('subsTrackerSummary').innerHTML=`
-    <div class="subsSummary">
-      <div class="subsSummaryBox">
-        <span class="muted">Total due</span>
-        <b>£${totalDue.toFixed(2)}</b>
-      </div>
-      <div class="subsSummaryBox">
-        <span class="muted">Outstanding</span>
-        <b>£${outstanding.toFixed(2)}</b>
-      </div>
-    </div>
-  `;
-
-  renderSubsConfirm_();
-  renderSubsByPlayer_();
-  renderSubsByMatch_();
-  renderSubsOwed_();
-  setSubsView(subsView);
-}
-
-function subsStatusClass_(status){
-  status=String(status||'').toLowerCase();
-  if(status.includes('confirmed'))return'paid';
-  if(status.includes('claim'))return'claimed';
-  if(status.includes('not paid'))return'owed';
-  return'unknown';
-}
-
-function renderSubsConfirm_(){
-  const box=document.getElementById('subsTrackerConfirmView');
-  const claims=subsData.claims||subsData.awaitingConfirmation||[];
-
-  if(!claims.length){
-    box.innerHTML='<div class="muted">No payment claims awaiting confirmation.</div>';
-    return;
-  }
-
-  box.innerHTML=claims.map(x=>`
-    <div class="subsPlayer">
-      <div class="subsPlayerBody" style="padding-top:12px">
-        <div class="score">
-          <div>
-            <b>${esc(x.player||'')}</b>
-            <div class="muted">${esc(x.match||x.opponent||'')}</div>
-          </div>
-          <span class="subsStatus claimed">Claims Paid</span>
-        </div>
-
-        <div class="subsActions">
-          <button class="btn green" onclick="confirmSubsPayment('${escJs(x.player)}','${escJs(x.matchId||'')}')">Confirm</button>
-          <button class="btn danger" onclick="rejectSubsPayment('${escJs(x.player)}','${escJs(x.matchId||'')}')">Not Paid</button>
-          <button class="btn secondary" onclick="markSubsUnconfirmed('${escJs(x.player)}','${escJs(x.matchId||'')}')">Unconfirmed</button>
-        </div>
-      </div>
-    </div>
-  `).join('');
-}
-
-async function confirmSubsPayment(player,matchId){
-  await setSubsStatus_(player,matchId,'Confirmed Paid');
-}
-
-async function rejectSubsPayment(player,matchId){
-  await setSubsStatus_(player,matchId,'Not Paid');
-}
-
-async function markSubsUnconfirmed(player,matchId){
-  await setSubsStatus_(player,matchId,'Unconfirmed');
-}
-
-async function setSubsStatus_(player,matchId,status){
-  try{
-    await call('setSubsStatus',PIN,player,matchId,status);
-    subsData=await call('getSubsTrackerData',PIN);
-    renderSubsTracker_();
-    toast('Subs updated');
-  }catch(e){
-    toast(e.message||'Could not update subs');
-  }
-}
-function renderSubsByPlayer_(){
-  const box=document.getElementById('subsTrackerPlayerView');
-  const players=subsData.players||subsData.byPlayer||[];
-
-  if(!players.length){
-    box.innerHTML='<div class="muted">No player subs data.</div>';
-    return;
-  }
-
-  box.innerHTML=players.map(p=>{
-    const items=p.matches||p.items||[];
-    const unpaid=items.filter(x=>{
-      const s=String(x.status||'').toLowerCase();
-      return s==='not paid'||s==='unconfirmed';
-    });
-    const claims=items.filter(x=>String(x.status||'').toLowerCase().includes('claim'));
-    const amount=Number(p.amountDue!=null?p.amountDue:unpaid.length*3);
-
-    return `
-      <details class="subsPlayer">
-        <summary>
-          <div class="score">
-            <div>
-              ${esc(p.player||p.name||'')}
-              <div class="subsMini">${unpaid.length} unpaid${claims.length?' • '+claims.length+' awaiting confirmation':''}</div>
-            </div>
-            <div class="subsOwedAmt">£${amount.toFixed(2)}</div>
-          </div>
-        </summary>
-
-        <div class="subsPlayerBody">
-          ${unpaid.length?`
-            <div style="font-weight:800;margin-bottom:5px">Amount due</div>
-            ${unpaid.map(x=>`
-              <div class="subsMatchRow">
-                <div class="score">
-                  <div>
-                    <b>${esc(x.opponent||x.match||'Match')}</b>
-                    <div class="muted">${esc(x.date||'')}</div>
-                  </div>
-                  <span class="subsStatus ${subsStatusClass_(x.status)}">${esc(x.status||'Unconfirmed')}</span>
-                </div>
-              </div>
-            `).join('')}
-          `:'<div class="muted">Nothing currently due.</div>'}
-
-          ${claims.length?`
-            <div style="font-weight:800;margin-top:12px">Awaiting confirmation</div>
-            ${claims.map(x=>`
-              <div class="subsMatchRow">
-                <div class="score">
-                  <div>
-                    <b>${esc(x.opponent||x.match||'Match')}</b>
-                    <div class="muted">${esc(x.date||'')}</div>
-                  </div>
-                  <span class="subsStatus claimed">Claims Paid</span>
-                </div>
-              </div>
-            `).join('')}
-          `:''}
-
-          ${p.paymentLink&&amount>0?`
-            <a class="btn green full" style="display:flex;align-items:center;justify-content:center;text-decoration:none;margin-top:10px"
-              href="${esc(p.paymentLink)}" target="_blank">Open Payment Link</a>
-          `:''}
-
-          ${amount>0?`
-            <button class="btn secondary full" style="margin-top:7px"
-              onclick="copyPlayerSubsSummary('${escJs(p.player||p.name||'')}')">Copy Payment Summary</button>
-          `:''}
-        </div>
-      </details>
-    `;
-  }).join('');
-}
-
-async function copyPlayerSubsSummary(playerName){
-  const players=subsData.players||subsData.byPlayer||[];
-  const p=players.find(x=>(x.player||x.name)===playerName);
-  if(!p)return;
-
-  const items=p.matches||p.items||[];
-  const unpaid=items.filter(x=>{
-    const s=String(x.status||'').toLowerCase();
-    return s==='not paid'||s==='unconfirmed';
-  });
-  const claims=items.filter(x=>String(x.status||'').toLowerCase().includes('claim'));
-  const amount=Number(p.amountDue!=null?p.amountDue:unpaid.length*3);
-
-  let text=`${playerName} — subs summary\n`;
-  text+=`Amount due: £${amount.toFixed(2)}\n`;
-
-  if(unpaid.length){
-    text+='\nUnpaid:\n';
-    unpaid.forEach(x=>{
-      text+=`• ${x.date||''} ${x.opponent||x.match||'Match'} — £3\n`;
-    });
-  }
-
-  if(claims.length){
-    text+='\nAwaiting confirmation:\n';
-    claims.forEach(x=>{
-      text+=`• ${x.date||''} ${x.opponent||x.match||'Match'}\n`;
-    });
-  }
-
-  if(p.paymentLink&&amount>0){
-    text+=`\nPayment link:\n${p.paymentLink}`;
-  }
-
-  try{
-    await navigator.clipboard.writeText(text);
-    toast('Payment summary copied');
-  }catch(e){
-    toast('Could not copy summary');
-  }
-}
-
-function renderSubsByMatch_(){
-  const box=document.getElementById('subsTrackerMatchView');
-  const matches=subsData.matches||subsData.byMatch||[];
-
-  if(!matches.length){
-    box.innerHTML='<div class="muted">No match subs data.</div>';
-    return;
-  }
-
-  box.innerHTML=matches.map(m=>`
-    <details class="subsPlayer">
-      <summary>
-        <div class="score">
-          <div>
-            ${esc(m.date||'')} — ${esc(m.opponent||m.match||'')}
-            <div class="subsMini">${esc(m.competition||'')}</div>
-          </div>
-          <span class="pill">${esc((m.players||m.items||[]).length)} players</span>
-        </div>
-      </summary>
-
-      <div class="subsPlayerBody">
-        ${(m.players||m.items||[]).map(x=>`
-          <div class="subsMatchRow">
-            <div class="score">
-              <div><b>${esc(x.player||x.name||'')}</b></div>
-              <span class="subsStatus ${subsStatusClass_(x.status)}">${esc(x.status||'Unconfirmed')}</span>
-            </div>
-          </div>
-        `).join('')}
-      </div>
-    </details>
-  `).join('');
-}
-
-function renderSubsOwed_(){
-  const box=document.getElementById('subsTrackerOwedView');
-  const players=(subsData.players||subsData.byPlayer||[])
-    .map(p=>{
-      const items=p.matches||p.items||[];
-      const unpaid=items.filter(x=>{
-        const s=String(x.status||'').toLowerCase();
-        return s==='not paid'||s==='unconfirmed';
-      });
-      const amount=Number(p.amountDue!=null?p.amountDue:unpaid.length*3);
-      return {...p,amount};
-    })
-    .filter(p=>p.amount>0)
-    .sort((a,b)=>b.amount-a.amount);
-
-  if(!players.length){
-    box.innerHTML='<div class="muted">Nobody currently owes subs.</div>';
-    return;
-  }
-
-  box.innerHTML=players.map(p=>`
-    <div class="subsDebtorRow">
-      <div>
-        <b>${esc(p.player||p.name||'')}</b>
-        <div class="subsMini">${esc((p.matches||p.items||[]).filter(x=>{
-          const s=String(x.status||'').toLowerCase();
-          return s==='not paid'||s==='unconfirmed';
-        }).length)} unpaid matches</div>
-      </div>
-      <div class="subsOwedAmt">£${p.amount.toFixed(2)}</div>
-    </div>
-  `).join('');
-}
-
-window.addEventListener('beforeunload',()=>{
-  if(currentMatchId)saveSession();
-});
-
-document.addEventListener('visibilitychange',async()=>{
-  if(document.visibilityState==='visible'&&currentMatchId){
-    try{
-      const fresh=await call('getMatchSummary',PIN,currentMatchId);
-      currentSummary=fresh;
-      renderSummary(fresh);
-      applyClockState_(fresh.clock);
-    }catch(e){}
-  }
-});
-
-window.addEventListener('online',async()=>{
-  if(currentMatchId){
-    try{
-      await refreshSummary();
-      toast('Back online');
-    }catch(e){}
-  }
-});
-
-window.addEventListener('keydown',e=>{
-  if(e.key==='Escape'){
-    if(!document.getElementById('finishModal').classList.contains('hidden')){
-      hideFinishMatchConfirm();
-    }
-    if(!document.getElementById('lineupPlayerPicker').classList.contains('hidden')){
-      closeLineupPlayerPicker();
-    }
-  }
-});
 </script>
 </body>
 </html>
