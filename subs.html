@@ -72,7 +72,6 @@
 <script>
 let PIN='';
 const ADMIN_AUTH_KEY='pmd_admin_auth';
-function call(fn,...args){return pmdCall(fn,...args)}
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.style.display='block';setTimeout(()=>t.style.display='none',2300)}
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function escJs(s){return encodeURIComponent(String(s??''))}
@@ -105,43 +104,55 @@ async function boot(){
   const saved=getSavedAdminAuth_();
   if(saved&&saved.token&&saved.expiresAt>Date.now()){
     try{
-      if(await call('verifyPin',saved.token)){
-        PIN=saved.token;
-        return openSubs_();
-      }
-    }catch(e){}
-    clearSavedAdminAuth_();
+      const data=await pmdCall('resumeSubs',saved.token);
+      PIN=saved.token;
+      return openSubsFromData_(data);
+    }catch(e){
+      clearSavedAdminAuth_();
+    }
   }
   showLogin_();
 }
-async function login(){const entered=val('pinInput').trim();if(!entered)return toast('Enter PIN');try{const session=await call('createAdminSession',entered);PIN=session.token;saveAdminAuth_(session);await openSubs_()}catch(e){toast(e.message||'Incorrect PIN')}}
-async function openSubs_(){
+async function login(){
+  const entered=val('pinInput').trim();
+  if(!entered)return toast('Enter PIN');
+  const btn=document.querySelector('#dynamicLogin button');
+  if(btn){btn.disabled=true;btn.textContent='Opening…'}
+  try{
+    const data=await pmdCall('openSubsWithPin',entered);
+    PIN=data.session.token;
+    saveAdminAuth_(data.session);
+    openSubsFromData_(data);
+  }catch(e){
+    if(btn){btn.disabled=false;btn.textContent='Open Subs Tracker'}
+    toast(e.message||'Incorrect PIN');
+  }
+}
+function openSubsFromData_(data){
   document.getElementById('loadingView').classList.add('hidden');
   const login=document.getElementById('dynamicLogin');
   if(login) login.classList.add('hidden');
   document.getElementById('subsApp').classList.remove('hidden');
-  try{
-    const init=await call('getInitData',PIN);
-    if(init&&init.badgeUrl){
-      document.getElementById('badge').src=init.badgeUrl;
-      const lb=document.getElementById('loadingBadge');
-      if(lb) lb.src=init.badgeUrl;
-    }
-    document.getElementById('season').textContent=(init&&init.season)||'';
-  }catch(e){}
-  await showSubsTracker();
+  const init=(data&&data.init)||{};
+  if(init.badgeUrl){
+    document.getElementById('badge').src=init.badgeUrl;
+    const lb=document.getElementById('loadingBadge');
+    if(lb) lb.src=init.badgeUrl;
+  }
+  document.getElementById('season').textContent=init.season||'';
+  renderSubsTracker((data&&data.subs)||{players:[],matches:[],debtors:[],pendingConfirmation:[],totalOutstandingAmount:0,totalClaimsPaid:0});
 }
 async function logoutAdmin(){
   const token=PIN;
   clearSavedAdminAuth_();
   PIN='';
-  try{if(token)await call('logoutAdminSession',token)}catch(e){}
+  try{if(token)await pmdCall('logoutAdminSession',token)}catch(e){}
   showLogin_();
   const i=document.getElementById('pinInput');
   if(i) i.value='';
 }
 async function showSubsTracker(){
-  const d=await call('getSubsTrackerData',PIN);
+  const d=await pmdCall('getSubsTrackerData',PIN);
   renderSubsTracker(d);
 }
 let SUBS_DATA=null;
@@ -315,74 +326,23 @@ function renderSubsByMatch(d){
         </div>
       </div>`;
     }).join('');
-
-    return `<details class="subsPlayer" data-match-id="${esc(m.matchId)}" ${OPEN_SUBS_MATCH_ID===m.matchId?'open':''} ontoggle="rememberOpenSubsMatch(this)">
-      <summary>
-        ${esc(m.date)} · ${esc(m.match)}
-        <div class="subsMatchSummary">
-          <span class="subsStatus paid">${m.confirmedPaid} confirmed</span>
-          ${m.claimsPaid?`<span class="subsStatus claimed">${m.claimsPaid} claimed paid</span>`:''}
-          ${m.notPaid?`<span class="subsStatus owed">${m.notPaid} not paid</span>`:''}
-          ${m.unconfirmed?`<span class="subsStatus unknown">${m.unconfirmed} unconfirmed</span>`:''}
-        </div>
-      </summary>
-      <div class="subsPlayerBody">
-        ${rows}
-        <button class="btn secondary full" style="margin-top:10px" onclick="copyNotPaidForMatch('${esc(m.matchId)}')">Copy Not Received list</button>
-      </div>
+    return `<details class="subsPlayer" ${OPEN_SUBS_MATCH_ID===m.matchId?'open':''}>
+      <summary onclick="OPEN_SUBS_MATCH_ID='${esc(m.matchId)}'">${esc(m.date)} · ${esc(m.match)} — ${m.confirmedPaid} confirmed</summary>
+      <div class="subsPlayerBody">${rows}</div>
     </details>`;
-  }).join(''):'<div class="muted">No completed match data yet.</div>';
-}
-
-function rememberOpenSubsMatch(el){
-  const id=el.getAttribute('data-match-id')||'';
-  if(el.open){
-    OPEN_SUBS_MATCH_ID=id;
-  }else if(OPEN_SUBS_MATCH_ID===id){
-    OPEN_SUBS_MATCH_ID='';
-  }
+  }).join(''):'<div class="muted">No subs data yet.</div>';
 }
 
 function renderSubsAmountsOwed(d){
   const host=document.getElementById('subsTrackerOwedView');
-  if(!d.debtors.length){
-    host.innerHTML='<div class="success">Nobody has any outstanding subs or payment claims to check.</div>';
-    return;
-  }
-
-  host.innerHTML=`<div class="card" style="box-shadow:none;margin:0;padding:12px">
-    ${d.debtors.map(p=>`
-      <div class="subsDebtorRow" style="align-items:flex-start">
-        <div style="flex:1">
-          <b>${esc(p.name)}</b>
-          <div class="subsMini">
-            ${p.amountDue>0
-              ? `${p.paymentDue} game${p.paymentDue===1?'':'s'} to pay · ${p.matches.map(m=>esc(m.match)).join(', ')}`
-              : 'No payment currently due'}
-            ${p.claimsPaid?` · ${p.claimsPaid} awaiting confirmation`:''}
-          </div>
-          ${p.totalPaymentLink&&p.amountDue>0
-            ? `<a class="btn purple" style="display:inline-block;margin-top:8px;text-decoration:none"
-                 href="${esc(p.totalPaymentLink)}" target="_blank" rel="noopener">Pay £${p.amountDue}</a>`
-            : ''}
-        </div>
-        <div class="subsOwedAmt">£${p.amountDue}</div>
-      </div>`).join('')}
-  </div>`;
-}
-
-
-async function copyText_(text,successMsg){
-  if(!text){
-    toast('Nothing to copy');
-    return;
-  }
-  try{
-    await navigator.clipboard.writeText(text);
-    toast(successMsg||'Copied');
-  }catch(e){
-    window.prompt('Copy this list:',text);
-  }
+  const rows=d.debtors||[];
+  host.innerHTML=rows.length?rows.map(p=>{
+    const claim=`${p.claimsPaid||0} claim${(p.claimsPaid||0)===1?'':'s'} waiting`;
+    return `<div class="subsDebtorRow">
+      <div><b>${esc(p.name)}</b><div class="subsMini">${p.paymentDue||0} to pay · ${claim}</div></div>
+      <div class="subsOwedAmt">£${p.amountDue||0}</div>
+    </div>`;
+  }).join(''):'<div class="success">Nobody currently owes subs.</div>';
 }
 
 function buildMonzoLink_(amount,identifier){
@@ -448,13 +408,19 @@ function copyNotPaidForPlayer(playerName){
   copyPaymentForPlayer(playerName);
 }
 
+async function copyText_(text,success){
+  try{await navigator.clipboard.writeText(text);toast(success||'Copied')}
+  catch(e){
+    const ta=document.createElement('textarea');ta.value=text;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();toast(success||'Copied');
+  }
+}
+
 async function setSubs(matchId,player,status){
   if(SUBS_VIEW==='match') OPEN_SUBS_MATCH_ID=matchId;
-  const d=await call('setSubsStatus',PIN,matchId,player,status);
+  const d=await pmdCall('setSubsStatus',PIN,matchId,player,status);
   renderSubsTracker(d);
   toast(player+' — '+status);
 }
-
 </script>
 </body>
 </html>
