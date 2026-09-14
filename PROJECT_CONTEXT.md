@@ -1,20 +1,18 @@
 # Perranporth 2026/27 App — Project Context / Source of Truth
 
-> **Purpose:** This file is the handover for continuing the Perranporth AFC 2026/27 match-data / voting / player portal project in a fresh ChatGPT conversation. **Read this file before making changes.**
+> **Purpose:** This file is the technical handover for continuing the Perranporth AFC 2026/27 match-data / voting / player portal project in a fresh ChatGPT conversation. **Read this file before making changes.**
 >
 > **Important:** Treat the live GitHub repo and the current Apps Script deployment as the source of truth. Do not rebuild features from scratch or revert to older layouts unless specifically asked.
 
-## 1. Owner / working style
+## 1. Working style
 
-- Project owner: Adam Turner.
-- Club: Perranporth AFC Men’s First Team (“Puffins”), 2026/27.
 - Use British spelling.
-- Adam prefers direct, practical answers and dislikes unnecessary explanation.
+- Prefer direct, practical answers and avoid unnecessary explanation.
 - **For code changes: provide / apply whole-file replacements, never fragments.**
 - Keep changes incremental and avoid multiple unrelated edits at once.
 - If a regression appears, inspect the current live file and previous known-good behaviour before changing architecture.
-- GitHub is connected to ChatGPT and can be edited directly when Adam asks.
-- Apps Script still requires Adam to paste/update and redeploy manually unless another deployment workflow is added later.
+- GitHub is connected to ChatGPT and can be edited directly when requested.
+- Apps Script still requires manual paste/update and redeploy unless another deployment workflow is added later.
 
 ## 2. Current architecture
 
@@ -122,7 +120,7 @@ The latest Subs optimisation combined startup calls so it does not serially do v
 Management pages use a 24-hour admin session stored in local storage under:
 - `pmd_admin_auth`
 
-Do **not** put management PINs or player PINs into this public repository / context file.
+Do **not** put management PINs, player PINs, dates of birth, payment-account details, safeguarding details or other sensitive/personal data into this public repository or context file.
 
 Player Portal supports player-specific PINs and a first-login “choose your own 4-digit PIN” flow.
 
@@ -190,7 +188,7 @@ The zone tiles should display:
 - the **count as the large number**
 - `Z1`, `Z2`, etc. underneath as the small label
 
-The current target appearance is the mobile screenshot Adam supplied on 14 Sep 2026: half-pitch heat maps titled Goal Locations and Assist Locations, with Zones 1–5 visibly enclosed by the penalty-area boundary.
+The current target appearance is the supplied mobile reference image: half-pitch heat maps titled Goal Locations and Assist Locations, with Zones 1–5 visibly enclosed by the penalty-area boundary.
 
 ## 7. Dashboard behaviour
 
@@ -227,13 +225,13 @@ Payment rules:
 Admin “By Player” view should show:
 - unpaid matches
 - exact amount due
-- one combined Monzo payment link
+- one combined payment link
 - copyable match/payment summary
 - Claims Paid listed as awaiting confirmation but excluded from amount due
 
 ## 9. Subs Tracker — CURRENT UNRESOLVED ISSUE
 
-As of the latest conversation on 14 Sep 2026, Adam reports:
+Current reported problem:
 
 > “the subs tracker is still taking me through apps script”
 
@@ -251,7 +249,7 @@ Investigate whether:
 2. a specific action inside Subs is causing visible navigation, or
 3. Safari is following an Apps Script response unexpectedly.
 
-Ask Adam for the exact URL shown when the visible navigation happens, or reproduce by inspecting the live route. Do not assume the GitHub link itself is wrong unless verified.
+Obtain the exact visible URL when the navigation happens, or reproduce by inspecting the live route. Do not assume the GitHub link itself is wrong unless verified.
 
 ## 10. Match Centre / event rules
 
@@ -302,64 +300,36 @@ Ghost Mode must show the exact player portal read-only without requiring the pla
 Ghost selection key used in local storage:
 - `pmd_ghost_player`
 
-## 13. Players / naming rules
+## 13. Player identity / naming rules
 
-Current active-player names include:
-- Leo Osborne
-- Jake Allen
-- Luke Watson-Read
-- Jack Smith
-- Tom Goodman
-- Kierren Faulkner
-- Ben Bignell
-- Rian Faulkner
-- Alex Taylor
-- Dan Gilbert
-- Ben Lawrence
-- George Parkes
-- Fin Stribley
-- Piran Wills
-- Dan Ware
-- Gav Counter
-- Tyreece Gallaway
-- Liam Drake
+Do **not** list player names in this public context file.
 
-Important naming distinctions:
-- Dan Gilbert and Dan Ware are different players.
-- Gav Counter is not the goalkeeper.
-- Leo Osborne is the goalkeeper.
+The live player list and any aliases should be read from the Google Sheet / backend when needed.
 
-Historic alias:
-- Gav Counter ↔ Gavin Counter
+Important implementation rule:
+- preserve distinct player identities exactly as stored in the source data
+- do not merge similarly named players
+- historic aliases may exist and should be handled in code/data mapping rather than documented here
 
-## 14. Known official match data to protect
+## 14. Match-data protection rules
 
-### Illogan RBL 2nd — 05/09/2026, Home, GE Cup
-- Result: 1–2 loss
-- Official Match ID: `CAL-dlv31f3ahas3uo68lkrooubj7o`
-- 6' conceded
-- 18' Ben Lawrence goal, assist George Parkes, header at back post from cross
-- 38' conceded
-- Exact substitution timings are unknown; do not invent them.
+Do **not** duplicate identifiable player-level match details in this public context file.
 
-### Wendron United 3rd — 12/09/2026, Away, League
-- Match ID: `CAL-TITLE-WENDRON-UNITED-3RD-V-PERRANPORTH-1ST-A`
-- Result: 3–0
-- Formation: 4-1-2-2-1
-- 17' Tom Goodman goal, George Parkes assist, Corner, header
-- 24' Tyreece Gallaway goal, open play
-- 34' Dan Gilbert goal, Jack Smith assist, open play
-- substitution/minute data has already been cleaned and should not be casually reworked
+When changing or debugging match data:
+- read the official current rows from the Google Sheet / Apps Script backend
+- do not invent missing substitution times
+- do not casually rework previously cleaned event/minute data
+- preserve known official Match IDs and fixture records in the data source rather than copying them into this file
 
 ## 15. Test-data cleanup already completed
 
-`Test4567` was fully removed from:
+A previous test match dataset was fully removed from:
 - Matches
 - Subs
 - Votes
 - Settings voting selection
 
-Do not reintroduce or use it as live data.
+Do not reintroduce deleted test data into live views.
 
 ## 16. Things not to regress
 
@@ -373,8 +343,8 @@ Before any refactor, explicitly protect these:
 6. Ghost Mode is read-only.
 7. Player Portal PIN selection/change flow must remain intact.
 8. Trial/Test/Demo data stays out of normal dashboard/match lists.
-9. Dan Gilbert / Dan Ware remain distinct.
-10. Do not expose PINs or authentication secrets in GitHub.
+9. Preserve distinct player identities; do not accidentally merge players.
+10. Do not expose PINs, personal information or authentication secrets in GitHub.
 
 ## 17. Recommended workflow in a new chat
 
@@ -385,10 +355,10 @@ Start with:
 Then:
 1. read this file
 2. fetch the current GitHub file(s) involved
-3. compare with the issue Adam reports
+3. compare with the reported issue
 4. make the smallest safe change
 5. update GitHub directly where possible
-6. if Apps Script changes are required, give Adam one complete replacement `Code.gs` / HTML file and exact redeploy instructions
+6. if Apps Script changes are required, provide one complete replacement `Code.gs` / HTML file and exact redeploy instructions
 
 Do not reconstruct the app from memory when live files are available.
 
