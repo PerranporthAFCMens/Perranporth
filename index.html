@@ -1,101 +1,91 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Perranporth Control Centre</title>
-
+  <base target="_top">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#0b67d1">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Perranporth">
-
+<style>
+    :root{--blue:#0b67d1;--blue2:#004da8;--ink:#15202b;--muted:#6c7a89;--bg:#eef3f8;--card:#fff;--line:#dbe4ec}
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Arial,Helvetica,sans-serif;background:linear-gradient(180deg,#eaf2fb 0,#f7f9fb 45%,#eef3f8 100%);color:var(--ink)}
+    .wrap{max-width:900px;margin:0 auto;padding:28px 16px 44px}
+    .hero{background:linear-gradient(135deg,#0a4f9e,#1183ea);color:#fff;border-radius:22px;padding:28px 24px;box-shadow:0 12px 28px rgba(19,70,120,.18);display:flex;align-items:center;gap:18px;position:relative}
+    .badge{width:78px;height:78px;border-radius:50%;background:#fff;object-fit:contain;padding:5px;box-shadow:0 4px 12px rgba(0,0,0,.18)}
+    h1{font-size:28px;margin:0 0 5px}.sub{opacity:.88;font-size:15px}
+    .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-top:18px}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:21px;box-shadow:0 6px 18px rgba(30,55,80,.07);display:flex;flex-direction:column;min-height:220px}
+    .icon{font-size:34px;margin-bottom:12px}h2{font-size:20px;margin:0 0 8px}.desc{color:var(--muted);line-height:1.45;font-size:14px;flex:1}
+    .btn{display:block;text-decoration:none;text-align:center;background:var(--blue);color:#fff;font-weight:700;padding:13px 14px;border-radius:12px;margin-top:18px}.btn:hover{background:var(--blue2)}
+    .footer{text-align:center;color:var(--muted);font-size:12px;margin-top:18px}
+    .refreshBtn{text-decoration:none;margin-left:auto;flex:0 0 auto;width:44px;height:44px;border:1px solid #ffffff55;border-radius:50%;background:#ffffff20;color:#fff;font-size:25px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent}.refreshBtn:active{transform:scale(.96);background:#ffffff32}
+    @media(max-width:720px){.grid{grid-template-columns:1fr}.card{min-height:0}.hero{padding:22px 18px}.badge{width:64px;height:64px}h1{font-size:23px}}
+  </style>
   <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png">
   <link rel="icon" type="image/png" href="./apple-touch-icon.png">
   <link rel="manifest" href="./manifest.webmanifest">
-
-  <style>
-    :root {
-      --blue:#0b67d1;
-      --blue2:#004da8;
-      --ink:#15202b;
-      --muted:#6c7a89;
-      --bg:#eef3f8;
-      --card:#ffffff;
-      --line:#dbe4ec;
-    }
-    * { box-sizing:border-box; }
-    body {
-      margin:0;
-      font-family:Arial,Helvetica,sans-serif;
-      background:linear-gradient(180deg,#eaf2fb 0,#f7f9fb 45%,#eef3f8 100%);
-      color:var(--ink);
-      min-height:100vh;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      padding:20px;
-    }
-    .card {
-      width:min(520px,100%);
-      background:var(--card);
-      border:1px solid var(--line);
-      border-radius:22px;
-      padding:26px 22px;
-      text-align:center;
-      box-shadow:0 12px 28px rgba(19,70,120,.12);
-    }
-    img {
-      width:118px;
-      height:118px;
-      object-fit:contain;
-      border-radius:22%;
-      margin-bottom:14px;
-    }
-    h1 { margin:0 0 8px; font-size:27px; }
-    p { margin:0; color:var(--muted); line-height:1.5; }
-    a {
-      display:block;
-      margin-top:18px;
-      background:var(--blue);
-      color:white;
-      text-decoration:none;
-      font-weight:800;
-      padding:14px 16px;
-      border-radius:12px;
-    }
-    .small { margin-top:14px; font-size:12px; color:var(--muted); }
-  </style>
-
-  <script>
-    const APP_URL = "https://script.google.com/macros/s/AKfycbyHHPOgGsImS9Kvr3SdZiKUGp3ZrbnOoJnIPUckm_Y9hH1K9b_j_Kgmw6UhzVMAyQ0q/exec";
-    const params = new URLSearchParams(window.location.search);
-    const installMode = params.get('install') === '1';
-
-    window.addEventListener('DOMContentLoaded', () => {
-      if (!installMode) {
-        window.location.replace(APP_URL);
-      }
-    });
-  </script>
 </head>
 <body>
-  <main class="card">
-    <img src="./apple-touch-icon.png" alt="Perranporth AFC">
-    <h1>Perranporth Control Centre</h1>
-    <p id="message">Opening Control Centre…</p>
-    <a id="manualLink" href="https://script.google.com/macros/s/AKfycbyHHPOgGsImS9Kvr3SdZiKUGp3ZrbnOoJnIPUckm_Y9hH1K9b_j_Kgmw6UhzVMAyQ0q/exec">Open Control Centre</a>
-    <div class="small">Perranporth AFC · 2026/27</div>
-  </main>
+  <div class="wrap">
+    <div class="hero">
+      <img class="badge" src="https://www.perranporthafc.co.uk/wp-content/themes/sharkfin-1-4/images/perranporth-afc-large.jpg" alt="Perranporth AFC">
+      <div>
+        <h1>Perranporth Control Centre</h1>
+        <div class="sub">2026/27 First Team</div>
+      </div>
+      <a class="refreshBtn" href="https://ajtbenanbar.github.io/Perranporth/" target="_top" aria-label="Refresh" title="Refresh">↻</a>
+    </div>
 
-  <script>
-    if (!installMode) {
-      document.getElementById('manualLink').style.display = 'none';
-    } else {
-      document.getElementById('message').textContent =
-        'Install mode: use Share → Add to Home Screen from this page.';
-      document.getElementById('manualLink').style.display = 'block';
-    }
-  </script>
+    <div class="grid">
+      <div class="card">
+        <div class="icon">⚽</div>
+        <h2>Match Centre</h2>
+        <div class="desc">Squads, lineup, live match clock, events, substitutions, past matches and player stats.</div>
+        <a class="btn" href="https://script.google.com/macros/s/AKfycbyHHPOgGsImS9Kvr3SdZiKUGp3ZrbnOoJnIPUckm_Y9hH1K9b_j_Kgmw6UhzVMAyQ0q/exec?page=admin" target="_top">Open Match Centre</a>
+      </div>
+
+      <div class="card">
+        <div class="icon">🗳️</div>
+        <h2>Voting Centre</h2>
+        <div class="desc">Open or close 3–2–1 voting, copy the player voting link and view the latest results.</div>
+        <a class="btn" href="https://script.google.com/macros/s/AKfycbyHHPOgGsImS9Kvr3SdZiKUGp3ZrbnOoJnIPUckm_Y9hH1K9b_j_Kgmw6UhzVMAyQ0q/exec?page=voting" target="_top">Open Voting Centre</a>
+      </div>
+
+      <div class="card">
+        <div class="icon">📊</div>
+        <h2>Season Dashboard</h2>
+        <div class="desc">Live 2026/27 season data, scoring trends, player contributions, goal locations and match analysis.</div>
+        <a class="btn" href="https://script.google.com/macros/s/AKfycbyHHPOgGsImS9Kvr3SdZiKUGp3ZrbnOoJnIPUckm_Y9hH1K9b_j_Kgmw6UhzVMAyQ0q/exec?page=dashboard" target="_top">Open Season Dashboard</a>
+      </div>
+
+
+      <div class="card">
+        <div class="icon">💷</div>
+        <h2>Subs Tracker</h2>
+        <div class="desc">See who owes match subs, review by player or by match, and mark payments as paid.</div>
+        <a class="btn" href="https://script.google.com/macros/s/AKfycbyHHPOgGsImS9Kvr3SdZiKUGp3ZrbnOoJnIPUckm_Y9hH1K9b_j_Kgmw6UhzVMAyQ0q/exec?page=admin&section=subs" target="_top">Open Subs Tracker</a>
+      </div>
+      <div class="card">
+        <div class="icon">👻</div>
+        <h2>Ghost Mode</h2>
+        <div class="desc">Management-only read-only view of any player's portal. No player PIN needed.</div>
+        <a class="btn" href="https://script.google.com/macros/s/AKfycbyHHPOgGsImS9Kvr3SdZiKUGp3ZrbnOoJnIPUckm_Y9hH1K9b_j_Kgmw6UhzVMAyQ0q/exec?page=ghost" target="_top">Open Ghost Mode</a>
+      </div>
+
+      <div class="card">
+        <div class="icon">👤</div>
+        <h2>Player Portal</h2>
+        <div class="desc">Players can view their own stats, see a simplified team dashboard and vote when voting is open.</div>
+        <a class="btn" href="https://script.google.com/macros/s/AKfycbyHHPOgGsImS9Kvr3SdZiKUGp3ZrbnOoJnIPUckm_Y9hH1K9b_j_Kgmw6UhzVMAyQ0q/exec?portal=player" target="_top">Open Player Portal</a>
+      </div>
+    </div>
+
+    <div class="footer">One link for all management tools</div>
+  </div>
+
 </body>
 </html>
