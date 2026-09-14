@@ -29,23 +29,16 @@
     .subsActions{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:7px}.subsActions .btn{min-height:40px;font-size:13px;padding:8px}
     .subsViewTabs{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin:12px 0}.subsViewTabs .btn{min-height:42px;padding:8px;font-size:13px}.subsViewTabs .btn.active{background:var(--blue);color:#fff}
     .subsDebtorRow{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:11px 0;border-bottom:1px solid #edf1f4}.subsDebtorRow:last-child{border-bottom:0}.subsOwedAmt{font-size:20px;font-weight:800;white-space:nowrap}.subsMini{font-size:12px;color:#6b7b89;margin-top:3px}.subsMatchSummary{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}.success{background:#e9f7ed;border:1px solid #ccebd4;color:#1d6b31;border-radius:11px;padding:11px}
+    .loadingInline{padding:14px 0;color:var(--muted);font-size:13px}
     @media(max-width:520px){.app{max-width:none;padding:max(7px,env(safe-area-inset-top)) 7px max(18px,env(safe-area-inset-bottom))}.card{border-radius:13px;padding:11px}.hero{gap:9px}.badge{width:46px;height:46px}h1{font-size:20px}.btn{min-height:47px;padding:9px 10px;font-size:15px}.subsViewTabs{grid-template-columns:1fr 1fr}}
   </style>
 </head>
 <body onload="boot()">
 <div class="app">
-  <div id="loadingView" class="pinWrap">
-    <div class="card pinCard">
-      <img id="loadingBadge" class="badge" src="./apple-touch-icon.png" alt="Perranporth badge" style="margin-bottom:12px">
-      <h2 style="margin:0 0 6px">Subs Tracker</h2>
-      <div class="muted">Loading…</div>
-    </div>
-  </div>
-
-  <div id="subsApp" class="hidden">
+  <div id="subsApp">
     <div class="card hero">
       <img id="badge" class="badge" src="./apple-touch-icon.png" alt="Perranporth AFC">
-      <div><h1>Perranporth Subs Tracker</h1><div id="season" class="muted"></div></div>
+      <div><h1>Perranporth Subs Tracker</h1><div id="season" class="muted">Loading current data…</div></div>
       <div class="heroActions">
         <a class="btn secondary homeBtn" href="https://ajtbenanbar.github.io/Perranporth/" target="_top">Home</a>
         <a class="btn secondary refreshBtn" href="./subs.html" aria-label="Refresh">↻</a>
@@ -55,14 +48,14 @@
 
     <div class="card">
       <div class="score"><div><h2>Subs Tracker</h2><div class="muted">£3 per game · based on matches played</div></div></div>
-      <div id="subsTrackerSummary" style="margin:12px 0"></div>
+      <div id="subsTrackerSummary" style="margin:12px 0"><div class="loadingInline">Loading subs summary…</div></div>
       <div class="subsViewTabs">
         <button id="subsTabConfirm" class="btn active" onclick="setSubsView('confirm')">Confirm</button>
         <button id="subsTabPlayer" class="btn secondary" onclick="setSubsView('player')">By Player</button>
         <button id="subsTabMatch" class="btn secondary" onclick="setSubsView('match')">By Match</button>
         <button id="subsTabOwed" class="btn secondary" onclick="setSubsView('owed')">Amounts Owed</button>
       </div>
-      <div id="subsTrackerConfirmView"></div>
+      <div id="subsTrackerConfirmView"><div class="loadingInline">Loading payment status…</div></div>
       <div id="subsTrackerPlayerView" class="hidden"></div>
       <div id="subsTrackerMatchView" class="hidden"></div>
       <div id="subsTrackerOwedView" class="hidden"></div>
@@ -81,7 +74,6 @@ function saveAdminAuth_(session){try{localStorage.setItem(ADMIN_AUTH_KEY,JSON.st
 function getSavedAdminAuth_(){try{const raw=localStorage.getItem(ADMIN_AUTH_KEY);if(!raw)return null;const x=JSON.parse(raw);if(!x||!x.token||!x.expiresAt)return null;return x}catch(e){return null}}
 function clearSavedAdminAuth_(){try{localStorage.removeItem(ADMIN_AUTH_KEY)}catch(e){}}
 function showLogin_(){
-  document.getElementById('loadingView').classList.add('hidden');
   document.getElementById('subsApp').classList.add('hidden');
   let host=document.getElementById('dynamicLogin');
   if(!host){
@@ -130,16 +122,11 @@ async function login(){
   }
 }
 function openSubsFromData_(data){
-  document.getElementById('loadingView').classList.add('hidden');
   const login=document.getElementById('dynamicLogin');
   if(login) login.classList.add('hidden');
   document.getElementById('subsApp').classList.remove('hidden');
   const init=(data&&data.init)||{};
-  if(init.badgeUrl){
-    document.getElementById('badge').src=init.badgeUrl;
-    const lb=document.getElementById('loadingBadge');
-    if(lb) lb.src=init.badgeUrl;
-  }
+  if(init.badgeUrl)document.getElementById('badge').src=init.badgeUrl;
   document.getElementById('season').textContent=init.season||'';
   renderSubsTracker((data&&data.subs)||{players:[],matches:[],debtors:[],pendingConfirmation:[],totalOutstandingAmount:0,totalClaimsPaid:0});
 }
