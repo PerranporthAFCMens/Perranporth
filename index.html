@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Perranporth Control Centre</title>
+
+  <meta name="theme-color" content="#0b67d1">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Perranporth">
+
+  <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png">
+  <link rel="icon" type="image/png" href="./apple-touch-icon.png">
+  <link rel="manifest" href="./manifest.webmanifest">
+
+  <style>
+    :root {
+      --blue:#0b67d1;
+      --blue2:#004da8;
+      --ink:#15202b;
+      --muted:#6c7a89;
+      --bg:#eef3f8;
+      --card:#ffffff;
+      --line:#dbe4ec;
+    }
+    * { box-sizing:border-box; }
+    body {
+      margin:0;
+      font-family:Arial,Helvetica,sans-serif;
+      background:linear-gradient(180deg,#eaf2fb 0,#f7f9fb 45%,#eef3f8 100%);
+      color:var(--ink);
+      min-height:100vh;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:20px;
+    }
+    .card {
+      width:min(520px,100%);
+      background:var(--card);
+      border:1px solid var(--line);
+      border-radius:22px;
+      padding:26px 22px;
+      text-align:center;
+      box-shadow:0 12px 28px rgba(19,70,120,.12);
+    }
+    img {
+      width:118px;
+      height:118px;
+      object-fit:contain;
+      border-radius:22%;
+      margin-bottom:14px;
+    }
+    h1 { margin:0 0 8px; font-size:27px; }
+    p { margin:0 0 18px; color:var(--muted); line-height:1.5; }
+    a {
+      display:block;
+      background:var(--blue);
+      color:white;
+      text-decoration:none;
+      font-weight:800;
+      padding:14px 16px;
+      border-radius:12px;
+    }
+    a:active { background:var(--blue2); }
+    .small { margin-top:14px; font-size:12px; color:var(--muted); }
+  </style>
+
+  <script>
+    const APP_URL = "https://script.google.com/macros/s/AKfycbyHHPOgGsImS9Kvr3SdZiKUGp3ZrbnOoJnIPUckm_Y9hH1K9b_j_Kgmw6UhzVMAyQ0q/exec";
+
+    window.addEventListener('DOMContentLoaded', () => {
+      const standalone =
+        window.navigator.standalone === true ||
+        window.matchMedia('(display-mode: standalone)').matches;
+
+      // When launched from the iPhone Home Screen, go straight into the real app.
+      // In normal Safari, stay on this page so it can be added to the Home Screen.
+      if (standalone) {
+        window.location.replace(APP_URL);
+      }
+    });
+  </script>
+</head>
+<body>
+  <main class="card">
+    <img src="./apple-touch-icon.png" alt="Perranporth AFC">
+    <h1>Perranporth Control Centre</h1>
+    <p>Add this page to your iPhone Home Screen. Once saved, tapping the icon will open the Control Centre automatically.</p>
+    <a href="https://script.google.com/macros/s/AKfycbyHHPOgGsImS9Kvr3SdZiKUGp3ZrbnOoJnIPUckm_Y9hH1K9b_j_Kgmw6UhzVMAyQ0q/exec">Open Control Centre now</a>
+    <div class="small">Perranporth AFC · 2026/27</div>
+  </main>
+</body>
+</html>
