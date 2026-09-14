@@ -8,6 +8,7 @@
   <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png">
   <link rel="icon" type="image/png" href="./apple-touch-icon.png">
   <link rel="manifest" href="./manifest.webmanifest">
+  <script src="./bridge-client.js"></script>
   <style>
     :root{--blue:#0b5ea8;--dark:#123b5d;--danger:#c62828;--green:#23811c;--bg:#f3f6f8;--line:#d8e0e6;--text:#17212b;--muted:#71808e}
     *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -67,62 +68,11 @@
     </div>
   </div>
 </div>
-<iframe id="dataBridge" title="Data bridge" src="https://script.google.com/macros/s/AKfycbyHHPOgGsImS9Kvr3SdZiKUGp3ZrbnOoJnIPUckm_Y9hH1K9b_j_Kgmw6UhzVMAyQ0q/exec?page=bridge" style="position:absolute;width:1px;height:1px;left:-9999px;border:0;opacity:0" aria-hidden="true"></iframe>
 <div id="toast" class="toast"></div>
 <script>
 let PIN='';
 const ADMIN_AUTH_KEY='pmd_admin_auth';
-const BRIDGE_ORIGIN='https://script.google.com';
-let BRIDGE_READY=false;
-let BRIDGE_SEQ=0;
-const BRIDGE_PENDING=new Map();
-const BRIDGE_QUEUE=[];
-
-function bridgeFrame_(){return document.getElementById('dataBridge')}
-function flushBridgeQueue_(){
-  if(!BRIDGE_READY)return;
-  const frame=bridgeFrame_();
-  if(!frame||!frame.contentWindow)return;
-  while(BRIDGE_QUEUE.length){
-    frame.contentWindow.postMessage(BRIDGE_QUEUE.shift(), '*');
-  }
-}
-function markBridgeReady_(){BRIDGE_READY=true;flushBridgeQueue_()}
-window.addEventListener('message',event=>{
-  const msg=event.data||{};
-  if(msg.type==='pmd-bridge-ready'){
-    markBridgeReady_();
-    return;
-  }
-  if(msg.type!=='pmd-bridge-response'||!msg.id)return;
-  const pending=BRIDGE_PENDING.get(msg.id);
-  if(!pending)return;
-  BRIDGE_PENDING.delete(msg.id);
-  clearTimeout(pending.timer);
-  if(msg.ok){pending.resolve(msg.result)}
-  else{
-    const err=new Error(msg.error||'Request failed');
-    toast(err.message);
-    pending.reject(err);
-  }
-});
-function call(fn,...args){
-  return new Promise((resolve,reject)=>{
-    const id='req_'+Date.now()+'_'+(++BRIDGE_SEQ);
-    const request={type:'pmd-bridge-request',id,action:fn,args};
-    const timer=setTimeout(()=>{
-      BRIDGE_PENDING.delete(id);
-      reject(new Error('The data connection timed out. Please refresh and try again.'));
-    },20000);
-    BRIDGE_PENDING.set(id,{resolve,reject,timer});
-    if(BRIDGE_READY){
-      const frame=bridgeFrame_();
-      frame.contentWindow.postMessage(request,'*');
-    }else{
-      BRIDGE_QUEUE.push(request);
-    }
-  });
-}
+function call(fn,...args){return pmdCall(fn,...args)}
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.style.display='block';setTimeout(()=>t.style.display='none',2300)}
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function escJs(s){return encodeURIComponent(String(s??''))}
@@ -366,25 +316,19 @@ function renderSubsByMatch(d){
       </div>`;
     }).join('');
 
-    const notPaidCount=m.players.filter(p=>p.status==='Not Paid').length;
-    const copyBtn=notPaidCount
-      ? `<button class="btn secondary full" style="margin-bottom:10px" onclick="copyNotPaidForMatch('${esc(m.matchId)}')">Copy ${notPaidCount} unpaid player${notPaidCount===1?'':'s'}</button>`
-      : '';
-
-    const openAttr=OPEN_SUBS_MATCH_ID===m.matchId?' open':'';
-    return `<details class="subsPlayer" data-match-id="${esc(m.matchId)}"${openAttr} ontoggle="rememberOpenSubsMatch(this)">
+    return `<details class="subsPlayer" data-match-id="${esc(m.matchId)}" ${OPEN_SUBS_MATCH_ID===m.matchId?'open':''} ontoggle="rememberOpenSubsMatch(this)">
       <summary>
-        <div><b>${esc(m.date)} · ${esc(m.match)}</b></div>
+        ${esc(m.date)} · ${esc(m.match)}
         <div class="subsMatchSummary">
           <span class="subsStatus paid">${m.confirmedPaid} confirmed</span>
-          <span class="subsStatus claimed">${m.claimsPaid} claim paid</span>
-          <span class="subsStatus owed">${m.notPaid} not paid</span>
-          <span class="subsStatus unknown">${m.unconfirmed} unconfirmed</span>
+          ${m.claimsPaid?`<span class="subsStatus claimed">${m.claimsPaid} claimed paid</span>`:''}
+          ${m.notPaid?`<span class="subsStatus owed">${m.notPaid} not paid</span>`:''}
+          ${m.unconfirmed?`<span class="subsStatus unknown">${m.unconfirmed} unconfirmed</span>`:''}
         </div>
       </summary>
       <div class="subsPlayerBody">
-        ${copyBtn}
         ${rows}
+        <button class="btn secondary full" style="margin-top:10px" onclick="copyNotPaidForMatch('${esc(m.matchId)}')">Copy Not Received list</button>
       </div>
     </details>`;
   }).join(''):'<div class="muted">No completed match data yet.</div>';
