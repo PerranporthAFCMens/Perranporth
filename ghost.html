@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Perranporth Ghost Mode</title>
+  <base target="_top">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root{
+      --blue:#0d5cab;--dark:#16202a;--muted:#6b7b89;--line:#dfe7ed;
+      --bg:#f4f7f9;--white:#fff;--purple:#6b3fb3;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);font-family:Arial,sans-serif;color:var(--dark)}
+    .wrap{max-width:620px;margin:0 auto;padding:18px}
+    .card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:18px;margin-bottom:14px;box-shadow:0 4px 14px rgba(0,0,0,.04)}
+    .hero{display:flex;gap:14px;align-items:center}
+    .icon{font-size:42px}
+    h1,h2{margin:0 0 6px}
+    .muted{color:var(--muted);line-height:1.4}
+    select,input{width:100%;padding:13px;border:1px solid #cfd9e1;border-radius:11px;font-size:16px;background:#fff}
+    .btn{display:inline-block;border:0;border-radius:11px;padding:12px 14px;font-size:15px;font-weight:800;cursor:pointer;text-decoration:none;text-align:center;background:var(--blue);color:#fff}
+    .btn.full{width:100%}
+    .btn.secondary{background:#eef3f7;color:var(--dark)}
+    .btn:disabled{opacity:.55;cursor:default}
+    .hidden{display:none!important}
+    .status{margin-top:9px;font-size:13px;color:var(--muted)}
+    .ready{background:#ecf7ef;border:1px solid #c9e6d0;border-radius:12px;padding:11px;margin-top:12px}
+    .topActions{display:flex;gap:8px;margin-left:auto}
+    .topActions a{white-space:nowrap}
+    @media(max-width:520px){
+      .hero{align-items:flex-start}
+      .topActions{flex-direction:column}
+    }
+  </style>
+
+  <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png">
+  <link rel="icon" type="image/png" href="./apple-touch-icon.png">
+  <link rel="manifest" href="./manifest.webmanifest">
+</head>
+<body onload="boot()">
+  <div class="wrap">
+    <div class="card hero">
+      <div class="icon">👻</div>
+      <div>
+        <h1>Ghost Mode</h1>
+        <div class="muted">Open any player's portal exactly as they see it — read only.</div>
+      </div>
+      <div class="topActions">
+        <a class="btn secondary" href="./">Home</a>
+      </div>
+    </div>
+
+    <div id="loadingCard" class="card">
+      <h2>Opening Ghost Mode…</h2>
+      <div class="muted">Checking management access.</div>
+    </div>
+
+    <div id="pinCard" class="card hidden">
+      <h2>Management access</h2>
+      <div class="muted" style="margin-bottom:12px">Enter the management PIN once. Your existing 24-hour admin session will then be reused.</div>
+      <input id="pinInput" type="password" inputmode="numeric" placeholder="Management PIN" onkeydown="if(event.key==='Enter')login()">
+      <button class="btn full" style="margin-top:10px" onclick="login()">Open Ghost Mode</button>
+    </div>
+
+    <div id="ghostCard" class="card hidden">
+      <h2>Select player</h2>
+      <div class="muted" style="margin-bottom:12px">Choose a player and their portal will be prepared before you open it.</div>
+
+      <select id="playerSelect" onchange="playerChanged()">
+        <option value="">Select player…</option>
+      </select>
+
+      <a id="openBtn" class="btn full" style="margin-top:10px;opacity:.55;pointer-events:none" href="#" target="_top" onclick="rememberGhostPlayer()">Choose a player</a>
+      <div id="status" class="status"></div>
+
+    </div>
+
+    <div id="toast" class="hidden"></div>
+  </div>
+
+<iframe id="dataBridge" title="Data bridge" src="https://script.google.com/macros/s/AKfycbyHHPOgGsImS9Kvr3SdZiKUGp3ZrbnOoJnIPUckm_Y9hH1K9b_j_Kgmw6UhzVMAyQ0q/exec?page=bridge" style="position:absolute;width:1px;height:1px;left:-9999px;border:0;opacity:0" aria-hidden="true"></iframe>
+<script>
+const ADMIN_AUTH_KEY='pmd_admin_auth';
+let PIN='';
+let PLAYERS=[];
+
+function $(id){return document.getElementById(id)}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+const BRIDGE_ORIGIN='https://script.google.com';
+let BRIDGE_READY=false;
+let BRIDGE_SEQ=0;
+const BRIDGE_PENDING=new Map();
+const BRIDGE_QUEUE=[];
+
+function bridgeFrame_(){return document.getElementById('dataBridge')}
+function flushBridgeQueue_(){
+  if(!BRIDGE_READY)return;
+  const frame=bridgeFrame_();
+  if(!frame||!frame.contentWindow)return;
+  while(BRIDGE_QUEUE.length){
+    frame.contentWindow.postMessage(BRIDGE_QUEUE.shift(), '*');
+  }
+}
+function markBridgeReady_(){BRIDGE_READY=true;flushBridgeQueue_()}
+window.addEventListener('message',event=>{
+  const msg=event.data||{};
+  if(msg.type==='pmd-bridge-ready'){
+    markBridgeReady_();
+    return;
+  }
+  if(msg.type!=='pmd-bridge-response'||!msg.id)return;
+  const pending=BRIDGE_PENDING.get(msg.id);
+  if(!pending)return;
+  BRIDGE_PENDING.delete(msg.id);
+  clearTimeout(pending.timer);
+  if(msg.ok){pending.resolve(msg.result)}
+  else{pending.reject(new Error(msg.error||'Request failed'))}
+});
+function call(fn,...args){
+  return new Promise((resolve,reject)=>{
+    const id='req_'+Date.now()+'_'+(++BRIDGE_SEQ);
+    const request={type:'pmd-bridge-request',id,action:fn,args};
+    const timer=setTimeout(()=>{
+      BRIDGE_PENDING.delete(id);
+      reject(new Error('The data connection timed out. Please refresh and try again.'));
+    },25000);
+    BRIDGE_PENDING.set(id,{resolve,reject,timer});
+    if(BRIDGE_READY){
+      const frame=bridgeFrame_();
+      frame.contentWindow.postMessage(request,'*');
+    }else{
+      BRIDGE_QUEUE.push(request);
+    }
+  });
+}
+function getSavedAuth(){
+  try{
+    const raw=localStorage.getItem(ADMIN_AUTH_KEY);
+    if(!raw)return null;
+    const x=JSON.parse(raw);
+    if(!x||!x.token||!x.expiresAt)return null;
+    return x;
+  }catch(e){return null}
+}
+function saveAuth(s){
+  try{localStorage.setItem(ADMIN_AUTH_KEY,JSON.stringify(s))}catch(e){}
+}
+function clearAuth(){
+  try{localStorage.removeItem(ADMIN_AUTH_KEY)}catch(e){}
+}
+function show(id){
+  ['loadingCard','pinCard','ghostCard'].forEach(x=>$(x).classList.toggle('hidden',x!==id));
+}
+function errorMessage(e){
+  return e&&e.message?e.message:String(e||'Something went wrong');
+}
+
+async function boot(){
+  const saved=getSavedAuth();
+  if(saved&&saved.token&&saved.expiresAt>Date.now()){
+    try{
+      const ok=await call('verifyPin',saved.token);
+      if(ok){
+        PIN=saved.token;
+        return openGhostSelector();
+      }
+    }catch(e){}
+    clearAuth();
+  }
+  show('pinCard');
+  setTimeout(()=>$('pinInput').focus(),50);
+}
+
+async function login(){
+  const entered=$('pinInput').value.trim();
+  if(!entered)return;
+  const btn=$('pinCard').querySelector('button');
+  btn.disabled=true;btn.textContent='Checking…';
+  try{
+    const session=await call('createAdminSession',entered);
+    PIN=session.token;
+    saveAuth(session);
+    await openGhostSelector();
+  }catch(e){
+    alert(errorMessage(e));
+    btn.disabled=false;btn.textContent='Open Ghost Mode';
+  }
+}
+
+async function openGhostSelector(){
+  show('loadingCard');
+  $('loadingCard').querySelector('.muted').textContent='Loading player list…';
+  try{
+    PLAYERS=await call('getPortalPlayers');
+    PLAYERS.sort((a,b)=>a.name.localeCompare(b.name));
+    $('playerSelect').innerHTML=
+      '<option value="">Select player…</option>'+ 
+      PLAYERS.map(p=>`<option value="${esc(p.name)}">${esc(p.name)}</option>`).join('');
+    show('ghostCard');
+  }catch(e){
+    alert(errorMessage(e));
+    show('pinCard');
+  }
+}
+
+function playerChanged(){
+  const player=$('playerSelect').value;
+  const btn=$('openBtn');
+
+  if(!player){
+    btn.href='#';
+    btn.style.opacity='.55';
+    btn.style.pointerEvents='none';
+    btn.textContent='Choose a player';
+    $('status').textContent='';
+    return;
+  }
+
+  btn.href='./player.html?ghost=1';
+  btn.style.opacity='1';
+  btn.style.pointerEvents='auto';
+  btn.textContent='Open as '+player;
+  $('status').textContent='Tap once to open their read-only portal.';
+}
+
+function rememberGhostPlayer(){
+  const player=$('playerSelect').value;
+  if(!player)return false;
+  try{
+    localStorage.setItem('pmd_ghost_player',player);
+  }catch(e){}
+  return true;
+}
+</script>
+</body>
+</html>
