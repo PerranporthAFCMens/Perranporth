@@ -41,6 +41,7 @@ Key GitHub files currently in use:
 - `voting.html` — Voting Centre
 - `vote.html` — player voting page
 - `bridge-client.js` — GitHub → Apps Script JSONP RPC bridge
+- `button-feedback.js` — shared visible pressed / busy-state interaction layer
 - `apple-touch-icon.png`
 - `manifest.webmanifest`
 
@@ -114,6 +115,12 @@ Subs uses RPC functions such as:
 - `logoutAdminSession`
 
 The latest Subs optimisation combined startup calls so it does not serially do verify → settings → tracker every time.
+
+Current bridge timeouts:
+- normal RPC calls: **30 seconds**
+- Player Portal / Ghost player-data builds: **60 seconds**
+
+The longer player-data timeout is deliberate because those calls can build current + historic statistics. Do not mistake a slow player-data build for a failed login and do not casually reduce this timeout.
 
 ## 5. Authentication rules
 
@@ -229,27 +236,17 @@ Admin “By Player” view should show:
 - copyable match/payment summary
 - Claims Paid listed as awaiting confirmation but excluded from amount due
 
-## 9. Subs Tracker — CURRENT UNRESOLVED ISSUE
+## 9. Subs Tracker — current state
 
-Current reported problem:
+The earlier report that Subs was visibly taking the user through Apps Script is **not currently treated as an active code defect**.
 
-> “the subs tracker is still taking me through apps script”
+Current verified routing:
+- Control Centre links directly to GitHub `./subs.html`
+- `subs.html` is GitHub-hosted
+- Apps Script is used only as the JSONP backend/API
+- old iOS / Home Screen shortcuts can still cache pre-migration routes, so if visible Apps Script navigation reappears, first capture the exact URL and reproduce before changing the code
 
-Important facts already checked:
-- live GitHub `index.html` links Subs to `./subs.html`
-- live GitHub `subs.html` is GitHub-hosted
-- `subs.html` loads `./bridge-client.js`
-- `bridge-client.js` uses JSONP to the Apps Script backend
-- the GitHub source does **not** intentionally navigate the visible browser to Apps Script
-
-Therefore the next debugging step should **not** blindly rewrite Subs again.
-
-Investigate whether:
-1. an older iOS Home Screen / PWA shortcut is cached and still opening the pre-migration Apps Script route, or
-2. a specific action inside Subs is causing visible navigation, or
-3. Safari is following an Apps Script response unexpectedly.
-
-Obtain the exact visible URL when the navigation happens, or reproduce by inspecting the live route. Do not assume the GitHub link itself is wrong unless verified.
+Do not blindly rewrite Subs routing unless the live source proves that a current action is navigating away from GitHub.
 
 ## 10. Match Centre / event rules
 
@@ -268,7 +265,7 @@ Do not invent missing substitution times for historic games.
 
 Voting is 3–2–1 plus Dick of the Day.
 
-Voting Centre is intended to show:
+Voting Centre currently supports:
 - current voting match
 - select match
 - open / close voting
@@ -285,6 +282,20 @@ Countback ordering:
 4. number of 1-point votes
 5. tied if still equal
 
+### Preferred future voting flow — not implemented yet
+
+The agreed direction is to simplify match selection and prevent wrong-match voting:
+- keep **one permanent voting link**
+- there will not be two first-team matches on the same day
+- the fixture on today’s date is the only valid voting match
+- automatically open voting at scheduled kick-off
+- automatically close voting at midnight that night
+- on non-match days, show that no voting is open
+- clearly show today’s opponent / competition / date / closing time on the voting page
+- submissions should be written explicitly against today’s valid fixture rather than relying on stale Settings state
+
+Because fixture changes can happen close to kick-off, automatic opening should only happen after validating that the fixture is still valid/current. This design remains conceptual until the backend and voting pages are deliberately updated together.
+
 ## 12. Player Portal
 
 Player Portal includes:
@@ -294,6 +305,11 @@ Player Portal includes:
 - voting when open
 - subs/payment information
 - historic / current comparison where appropriate
+
+Player login behaviour:
+- the login button should immediately show **Logging in…** and disable while the session + portal data load
+- failed login/data calls must restore the button and show the error
+- player-data calls can use the 60-second bridge timeout described above
 
 Ghost Mode must show the exact player portal read-only without requiring the player’s PIN.
 
@@ -331,7 +347,18 @@ A previous test match dataset was fully removed from:
 
 Do not reintroduce deleted test data into live views.
 
-## 16. Things not to regress
+## 16. UI interaction standard
+
+Mobile use is the priority. Buttons should never feel dead or ambiguous.
+
+- GitHub UI pages use `button-feedback.js` directly rather than loading it indirectly through `bridge-client.js`.
+- Every tappable button / button-style link should visibly press immediately.
+- Longer async actions should show a busy/disabled state or an explicit loading label where practical.
+- Success / failure feedback should make it clear whether the action actually completed.
+- Keep the API bridge focused on transport/auth/data. Do not couple UI feedback loading into `bridge-client.js`.
+- The Dashboard already has its own back/refresh pressed-state styling; avoid unnecessary dashboard changes when the existing controls are working.
+
+## 17. Things not to regress
 
 Before any refactor, explicitly protect these:
 
@@ -345,8 +372,9 @@ Before any refactor, explicitly protect these:
 8. Trial/Test/Demo data stays out of normal dashboard/match lists.
 9. Preserve distinct player identities; do not accidentally merge players.
 10. Do not expose PINs, personal information or authentication secrets in GitHub.
+11. Keep button feedback separate from API transport logic.
 
-## 17. Recommended workflow in a new chat
+## 18. Recommended workflow in a new chat
 
 Start with:
 
