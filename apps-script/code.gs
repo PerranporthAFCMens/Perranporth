@@ -329,6 +329,7 @@ function runGithubRpc_(action, args) {
     getGhostPlayerPortalDataDirect: function(a) { return getGhostPlayerPortalDataDirect(a[0], a[1]); },
     submitPortalVote: function(a) { return submitPortalVote(a[0], a[1]); },
     getPublicVotingData: function() { return getPublicVotingData(); },
+    getPublicSpectatorData: function() { return getPublicSpectatorData(); },
     submitVote: function(a) { return submitVote(a[0], a[1]); }
   };
 
