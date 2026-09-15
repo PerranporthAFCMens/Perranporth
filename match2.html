@@ -389,13 +389,13 @@
             </div>
           </div>
           <button class="btn secondary full" style="margin-top:10px" onclick="openLineupBuilder()">Lineup / Subs Board</button>
-          <button class="btn secondary full" style="margin-top:7px" onclick="shareResult(currentMatchId)">Share Result</button>
         </div>
       </div>
       <div id="logEventCard" class="card"><h2>Log event</h2><div class="quick"><button class="btn green" onclick="startEvent('Goal')">⚽ Goal</button><button class="btn danger" onclick="startEvent('Conceded Goal')">🥅 Conceded</button><button class="btn secondary" onclick="startEvent('Substitution')">🔁 Sub</button><button class="btn secondary" onclick="startEvent('Yellow Card')">🟨 Yellow</button><button class="btn danger" onclick="startEvent('Red Card')">🟥 Red</button></div></div>
       <div id="eventForm" class="card hidden"><div class="score"><h2 id="eventTitle"></h2><button class="btn secondary" onclick="useClockMinute()">Use clock minute</button></div><div id="eventFields"></div><div id="zoneBlock" class="hidden"><div class="muted">Tap the zone</div><div class="pitch" id="pitch"></div></div><div id="originZoneBlock" class="hidden"><div class="muted">Assist / origin zone</div><div class="pitch" id="pitch2"></div></div><textarea id="eventNotes" placeholder="Notes" style="margin-top:8px"></textarea><div class="grid2" style="margin-top:10px"><button id="eventSaveBtn" class="btn green" onclick="saveEvent()">Save Event</button><button class="btn secondary" onclick="cancelEvent()">Cancel</button></div></div>
       <div class="card"><div class="score"><h2>Recent events</h2><button class="btn secondary" onclick="undoLastEvent()">Undo last</button></div><div id="eventFeed" class="muted">No events yet</div></div>
       <button id="finishMatchBtn" class="btn danger full" onclick="showFinishMatchConfirm()">Finish Match</button>
+      <button id="shareResultBtn" class="btn green full hidden" style="margin-top:7px" onclick="shareResult(currentMatchId)">Share Result</button>
       <button class="btn secondary full" style="margin-top:7px" onclick="showView('home')">Back to Home</button>
     </div>
   </div>
@@ -429,7 +429,7 @@
 
 <script>
 let PIN='',DATA=null,currentMatchId='',currentPastMatchId='',currentSummary=null,matchTimer=null,clockSyncTimer=null,summarySyncTimer=null,summarySyncBusy=false,draftEvent=null,editingEventId='',selectedZone='',selectedOriginZone='',eventSaveBusy=false;
-let lineupState=[],lineupDrag=null,lineupSuppressClickUntil=0;
+let lineupState=[],lineupDrag=null,lineupSuppressClickUntil=0,returnToMatchBusy=false;
 let clockBaseSeconds=0,clockRunningSince=null,clockOnBreak=false,matchHalf=1;
 function call(fn,...args){return pmdCall(fn,...args)}
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.style.display='block';setTimeout(()=>t.style.display='none',2300)}
@@ -872,13 +872,19 @@ async function openLineupBuilder(){
 
   const m=(DATA.matches||[]).find(x=>x.matchId===id);
 
-  const [saved,squad]=await Promise.all([
+  const [saved,squad,allPlayers]=await Promise.all([
     call('getLineup',PIN,currentMatchId),
-    call('getSquad',PIN,currentMatchId)
+    call('getSquad',PIN,currentMatchId),
+    call('getAllPlayersForAdmin',PIN)
   ]);
 
+  if(Array.isArray(allPlayers)){
+    DATA.allPlayers=allPlayers;
+    DATA.players=allPlayers.filter(p=>p.active!==false);
+  }
+
   document.getElementById('lineupMatchLabel').textContent=m?`${m.date} — ${m.opponent} (${m.venue})`:'';
-  const formation=(saved&&saved.formation&&LINEUP_PRESETS[saved.formation])?saved.formation:'4-3-3';
+  const formation=(saved&&saved.formation&&LINEUP_PRESETS[saved.formation])?saved.formation:'4-2-3-1';
   document.getElementById('lineupFormation').value=formation;
 
   if(saved&&saved.positions&&saved.positions.length){
@@ -886,6 +892,13 @@ async function openLineupBuilder(){
       player:p.player,area:p.area,x:Number(p.x||50),y:Number(p.y||50),
       order:Number(p.order||i+1),slot:p.area==='Pitch'?Math.max(0,Math.min(10,Number(p.order||i+1)-1)):null
     }));
+    const already=new Set(lineupState.map(p=>p.player));
+    (squad||[]).forEach(p=>{
+      if(p&&p.player&&!already.has(p.player)){
+        lineupState.push({player:p.player,area:'Bench',x:0,y:0,slot:null,order:lineupState.filter(x=>x.area==='Bench').length+1});
+        already.add(p.player);
+      }
+    });
   }else if(squad&&squad.length){
     const starters=squad.filter(p=>p.status==='Starter');
     const subs=squad.filter(p=>p.status!=='Starter');
@@ -1160,17 +1173,19 @@ async function saveLineupBuilder(){
 }
 
 async function returnToCurrentMatch(){
-  if(!currentMatchId){
-    showView('home');
-    return;
-  }
+  if(returnToMatchBusy)return;
+  returnToMatchBusy=true;
+  const buttons=[...document.querySelectorAll('button[onclick="returnToCurrentMatch()"]')];
+  buttons.forEach(b=>{b.disabled=true;b.textContent='Opening…'});
+  if(!currentMatchId){showView('home');returnToMatchBusy=false;return}
   try{
     currentSummary=await call('getMatchSummary',PIN,currentMatchId);
     showView('match');
     renderSummary(currentSummary);
     applyClockState_(currentSummary.clock);
-  }catch(e){
-    showView('home');
+  }catch(e){showView('home')}finally{
+    returnToMatchBusy=false;
+    buttons.forEach(b=>{b.disabled=false;b.textContent='Back to Match'});
   }
 }
 
@@ -1708,10 +1723,18 @@ function renderClock(){const total=currentElapsedSeconds();const m=Math.floor(to
 
 async function toggleClock(){
   if(!currentMatchId)return;
+  const wasRunning=!!clockRunningSince;
+  if(wasRunning){
+    clockBaseSeconds=currentElapsedSeconds();
+    clockRunningSince=null;
+    if(matchTimer){clearInterval(matchTimer);matchTimer=null}
+    const b=document.getElementById('clockBtn');
+    b.textContent='Resume';b.className='btn green';b.disabled=true;renderClock();
+  }
   try{
     const clock=await call('toggleMatchClock',PIN,currentMatchId);
     applyClockState_(clock);
-  }catch(e){}
+  }catch(e){await syncSharedClock_();toast('Could not update clock')}
 }
 
 async function resetClock(){
@@ -1727,11 +1750,11 @@ async function resetClock(){
 function setHalfTimeButton_(onBreak){
   const htBtn=document.getElementById('htBtn');
   if(onBreak){
-    htBtn.textContent='Start 2nd Half';
-    htBtn.className='btn green full';
+    htBtn.textContent='Start 2nd Half';htBtn.className='btn green full';htBtn.onclick=toggleHalfTime;
+  }else if(matchHalf>=2){
+    htBtn.textContent='End Game';htBtn.className='btn danger full';htBtn.onclick=showFinishMatchConfirm;
   }else{
-    htBtn.textContent='Half Time';
-    htBtn.className='btn secondary full';
+    htBtn.textContent='Half Time';htBtn.className='btn secondary full';htBtn.onclick=toggleHalfTime;
   }
 }
 
@@ -1983,7 +2006,6 @@ async function saveEvent(){
     if(!draftEvent.player||!draftEvent.secondaryPlayer)return toast('Select both players');
     if(draftEvent.player===draftEvent.secondaryPlayer)return toast('Player off and player on must be different');
   }
-  if(type==='Goal'&&draftEvent.secondaryPlayer&&draftEvent.secondaryPlayer===draftEvent.player)return toast('Scorer and assist cannot be the same');
 
   eventSaveBusy=true;
   const saveBtn=exists('eventSaveBtn')?document.getElementById('eventSaveBtn'):null;
@@ -2010,6 +2032,11 @@ async function saveEvent(){
 }
 
 async function refreshSummary(){currentSummary=await call('getMatchSummary',PIN,currentMatchId);renderSummary(currentSummary);applyClockState_(currentSummary.clock)}
+async function deleteEventById(eventId){
+  if(!eventId||!currentMatchId)return;
+  if(!confirm('Delete this event?'))return;
+  try{currentSummary=await call('deleteEvent',PIN,eventId,currentMatchId);renderSummary(currentSummary);applyClockState_(currentSummary.clock);toast('Event deleted')}catch(e){toast(e&&e.message?e.message:'Could not delete event')}
+}
 async function undoLastEvent(){if(!confirm('Undo the most recent event?'))return;currentSummary=await call('deleteLastEvent',PIN,currentMatchId);renderSummary(currentSummary)}
 function renderSummary(s){
   const isTrial=String((s.match&&s.match.source)||'').toLowerCase()==='trial';
@@ -2036,7 +2063,7 @@ function renderSummary(s){
     return `<div class="event">
       <div class="score">
         <div><b>${formatMinute_(e.minute)}'</b> ${esc(e.type)}${detail?' — '+esc(detail):''}</div>
-        <button class="btn secondary" style="padding:7px 11px" onclick="editEvent('${escJs(e.eventId)}')">Edit</button>
+        <div style="display:flex;gap:5px"><button class="btn secondary" style="padding:7px 11px" onclick="editEvent('${escJs(e.eventId)}')">Edit</button><button class="btn danger" style="padding:7px 11px" onclick="deleteEventById('${escJs(e.eventId)}')">Delete</button></div>
       </div>
       ${e.notes?`<div class="muted" style="margin-top:4px">${esc(e.notes)}</div>`:''}
     </div>`;
@@ -2047,8 +2074,10 @@ function renderSummary(s){
   const finishBtn=document.getElementById('finishMatchBtn');
   const preMatch=document.getElementById('preMatchActions');
   const liveControls=document.getElementById('liveMatchControls');
+  const shareBtn=document.getElementById('shareResultBtn');
 
   const completed=m.status==='Completed';
+  if(shareBtn)shareBtn.classList.toggle('hidden',!completed);
   const scheduled=!completed&&m.status!=='Live';
 
   if(completed){
