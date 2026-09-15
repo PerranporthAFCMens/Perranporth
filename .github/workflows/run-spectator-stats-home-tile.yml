@@ -1,0 +1,20 @@
+name: Run spectator stats and home tile patch
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/run-spectator-stats-home-tile.yml'
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - run: python .github/scripts/add_spectator_stats_and_home_tile.py
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add live.html index.html
+          git commit -m "Add goal assist markers and spectator board tile"
+          git push
