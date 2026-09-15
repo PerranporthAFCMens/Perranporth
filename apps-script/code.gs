@@ -191,7 +191,8 @@ function handlePublicApi_(api, params) {
 }
 
 function getPublicSpectatorData() {
-  const liveMatches = getMatches_(true).filter(m => String(m.status || '').toLowerCase() === 'live');
+  const matchRows = getSS_().getSheetByName(SHEETS.MATCHES).getDataRange().getValues().slice(1);
+  const liveMatches = matchRows.map(rowToMatch_).filter(m => m.matchId && String(m.status || '').toLowerCase() === 'live');
   if (!liveMatches.length) {
     return {
       live: false,
