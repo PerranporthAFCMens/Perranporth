@@ -312,6 +312,13 @@ function runGithubRpc_(action, args) {
     updatePlayer: function(a) { return updatePlayer(a[0], a[1], a[2]); },
     getPlayerPinAdminData: function(a) { return getPlayerPinAdminData(a[0]); },
     resetPlayerPin: function(a) { return resetPlayerPin(a[0], a[1], a[2]); },
+    getManagementAdminData: function(a) { return getManagementAdminData(a[0]); },
+    saveManagementUser: function(a) { return saveManagementUser(a[0], a[1]); },
+    revokeManagementUser: function(a) { return revokeManagementUser(a[0], a[1]); },
+    revokeManagementSessions: function(a) { return revokeManagementSessions(a[0], a[1]); },
+    sendManagementPinReset: function(a) { return sendManagementPinReset(a[0], a[1]); },
+    validateManagementResetToken: function(a) { return validateManagementResetToken(a[0]); },
+    completeManagementPinReset: function(a) { return completeManagementPinReset(a[0], a[1]); },
     getSubsTrackerData: function(a) { return getSubsTrackerData(a[0]); },
     setSubsStatus: function(a) { return setSubsStatus(a[0], a[1], a[2], a[3]); },
     getVotingAdminData: function(a) { return getVotingAdminData(a[0]); },
@@ -338,99 +345,456 @@ function runGithubRpc_(action, args) {
   if (!Object.prototype.hasOwnProperty.call(handlers, action)) {
     throw new Error('Unsupported Match Centre request: ' + action);
   }
+  assertGithubRpcAccess_(action, args);
   return handlers[action](args);
 }
 
 const ADMIN_SESSION_HOURS = 24;
 const ADMIN_SESSION_PREFIX = 'ADMIN_SESSION_';
+const MANAGEMENT_SHEET = 'Management Access';
+const MANAGEMENT_RESET_PREFIX = 'MGMT_RESET_';
+const MANAGEMENT_RESET_MINUTES = 60;
+const MANAGEMENT_RESET_URL = 'https://PerranporthAFCMens.github.io/Perranporth/admin-reset.html';
 
-function verifyPin(pinOrToken) {
+const MANAGEMENT_ROLES = {
+  FULL_ADMIN: ['*'],
+  MATCHDAY: ['match', 'read'],
+  VOTING: ['voting', 'read'],
+  SUBS: ['subs', 'read'],
+  READ_ONLY: ['read'],
+  CUSTOM: []
+};
+
+function pinHash_(id, pin) {
+  const bytes = Utilities.computeDigest(
+    Utilities.DigestAlgorithm.SHA_256,
+    String(id || '') + '|' + String(pin || ''),
+    Utilities.Charset.UTF_8
+  );
+  return bytes.map(function(b) {
+    const v = b < 0 ? b + 256 : b;
+    return ('0' + v.toString(16)).slice(-2);
+  }).join('');
+}
+
+function ensureManagementSheet_() {
+  const ss = getSS_();
+  let sh = ss.getSheetByName(MANAGEMENT_SHEET);
+  if (!sh) {
+    sh = ss.insertSheet(MANAGEMENT_SHEET);
+    sh.getRange(1, 1, 1, 12).setValues([[
+      'ID','Name','Email','Role','Custom Access','Player Access Too',
+      'Linked Player','PIN Hash','PIN Version','Active','Created At','Updated At'
+    ]]);
+    sh.setFrozenRows(1);
+    sh.hideSheet();
+  }
+  return sh;
+}
+
+function managementRows_() {
+  const sh = ensureManagementSheet_();
+  if (sh.getLastRow() < 2) return [];
+  return sh.getRange(2, 1, sh.getLastRow() - 1, 12).getValues().map(function(r, i) {
+    return {
+      row: i + 2,
+      id: String(r[0] || '').trim(),
+      name: String(r[1] || '').trim(),
+      email: String(r[2] || '').trim(),
+      role: String(r[3] || 'READ_ONLY').trim() || 'READ_ONLY',
+      customAccess: String(r[4] || '').split(',').map(function(x){ return x.trim(); }).filter(Boolean),
+      playerAccessToo: bool_(r[5]),
+      linkedPlayer: String(r[6] || '').trim(),
+      pinHash: String(r[7] || '').trim(),
+      pinVersion: Number(r[8] || 1),
+      active: bool_(r[9]),
+      createdAt: r[10] || '',
+      updatedAt: r[11] || ''
+    };
+  }).filter(function(x){ return x.id; });
+}
+
+function getManagementUserById_(id) {
+  return managementRows_().find(function(x) { return x.id === String(id || ''); }) || null;
+}
+
+function getManagementUserByPin_(pin) {
+  pin = String(pin || '').trim();
+  if (!pin) return null;
+  return managementRows_().find(function(x) {
+    return x.active && x.pinHash && x.pinHash === pinHash_(x.id, pin);
+  }) || null;
+}
+
+function permissionsForManagementUser_(u) {
+  if (!u) return [];
+  if (u.role === 'FULL_ADMIN') return ['*'];
+  if (u.role === 'CUSTOM') return (u.customAccess || []).slice();
+  return (MANAGEMENT_ROLES[u.role] || []).slice();
+}
+
+function managementContext_(pinOrToken) {
   const value = String(pinOrToken || '').trim();
-  if (!value) return false;
+  if (!value) return null;
 
   const settings = getSettings_();
-  if (value === String(settings['App PIN'] || '')) return true;
-  const temporaryPin = String(settings['Temporary Management PIN'] || '').trim();
-  if (temporaryPin && value === temporaryPin) return true;
+  const appPin = String(settings['App PIN'] || '').trim();
+  const tempPin = String(settings['Temporary Management PIN'] || '').trim();
 
-  return isValidAdminSession_(value);
+  if (appPin && value === appPin) {
+    return { source: 'MAIN', id: 'MAIN', name: 'Main Admin', role: 'FULL_ADMIN', permissions: ['*'], pinVersion: 1 };
+  }
+  if (tempPin && value === tempPin) {
+    return { source: 'TEMP', id: 'TEMP', name: 'Temporary Admin', role: 'FULL_ADMIN', permissions: ['*'], pinVersion: 1 };
+  }
+
+  const directUser = getManagementUserByPin_(value);
+  if (directUser) {
+    return {
+      source: 'USER', id: directUser.id, name: directUser.name,
+      role: directUser.role, permissions: permissionsForManagementUser_(directUser),
+      pinVersion: directUser.pinVersion
+    };
+  }
+
+  return adminSessionContext_(value);
+}
+
+function verifyPin(pinOrToken) {
+  return !!managementContext_(pinOrToken);
 }
 
 function assertPin_(pinOrToken) {
-  if (!verifyPin(pinOrToken)) {
-    throw new Error('Admin session expired. Please enter the PIN again.');
-  }
+  if (!verifyPin(pinOrToken)) throw new Error('Admin session expired. Please enter the PIN again.');
 }
 
 function createAdminSession(pin) {
-  const settings = getSettings_();
   const enteredPin = String(pin || '').trim();
-  const appPin = String(settings['App PIN'] || '').trim();
-  const temporaryPin = String(settings['Temporary Management PIN'] || '').trim();
-  const isMainPin = enteredPin && enteredPin === appPin;
-  const isTemporaryPin = enteredPin && temporaryPin && enteredPin === temporaryPin;
-
-  if (!isMainPin && !isTemporaryPin) {
-    throw new Error('Incorrect PIN.');
-  }
+  const ctx = managementContext_(enteredPin);
+  if (!ctx || ctx.source === 'SESSION') throw new Error('Incorrect PIN.');
 
   cleanupExpiredAdminSessions_();
-
   const token = Utilities.getUuid() + '-' + Utilities.getUuid();
   const expiresAt = Date.now() + (ADMIN_SESSION_HOURS * 60 * 60 * 1000);
-  const storedValue = isTemporaryPin
-    ? String(expiresAt) + '|TEMP|' + temporaryPin
-    : String(expiresAt);
+  let storedValue = String(expiresAt);
 
-  PropertiesService.getScriptProperties()
-    .setProperty(ADMIN_SESSION_PREFIX + token, storedValue);
+  if (ctx.source === 'TEMP') {
+    storedValue = String(expiresAt) + '|TEMP|' + enteredPin;
+  } else if (ctx.source === 'USER') {
+    storedValue = String(expiresAt) + '|USER|' + ctx.id + '|' + String(ctx.pinVersion || 1);
+  }
 
+  PropertiesService.getScriptProperties().setProperty(ADMIN_SESSION_PREFIX + token, storedValue);
   return { token: token, expiresAt: expiresAt };
 }
 
 function logoutAdminSession(token) {
   token = String(token || '').trim();
-  if (token) {
-    PropertiesService.getScriptProperties()
-      .deleteProperty(ADMIN_SESSION_PREFIX + token);
-  }
+  if (token) PropertiesService.getScriptProperties().deleteProperty(ADMIN_SESSION_PREFIX + token);
   return true;
 }
 
-function isValidAdminSession_(token) {
+function adminSessionContext_(token) {
   const props = PropertiesService.getScriptProperties();
   const key = ADMIN_SESSION_PREFIX + String(token || '');
   const raw = props.getProperty(key);
-  if (!raw) return false;
+  if (!raw) return null;
 
   const parts = String(raw).split('|');
   const expiresAt = Number(parts[0]);
   if (!expiresAt || Date.now() >= expiresAt) {
     props.deleteProperty(key);
-    return false;
+    return null;
+  }
+
+  if (!parts[1]) {
+    return { source: 'SESSION', id: 'MAIN', name: 'Main Admin', role: 'FULL_ADMIN', permissions: ['*'], pinVersion: 1 };
   }
 
   if (parts[1] === 'TEMP') {
-    const settings = getSettings_();
-    const currentTemporaryPin = String(settings['Temporary Management PIN'] || '').trim();
-    if (!currentTemporaryPin || parts[2] !== currentTemporaryPin) {
+    const current = String(getSettings_()['Temporary Management PIN'] || '').trim();
+    if (!current || parts[2] !== current) {
       props.deleteProperty(key);
-      return false;
+      return null;
     }
+    return { source: 'SESSION', id: 'TEMP', name: 'Temporary Admin', role: 'FULL_ADMIN', permissions: ['*'], pinVersion: 1 };
   }
 
-  return true;
+  if (parts[1] === 'USER') {
+    const u = getManagementUserById_(parts[2]);
+    if (!u || !u.active || Number(parts[3] || 0) !== Number(u.pinVersion || 1)) {
+      props.deleteProperty(key);
+      return null;
+    }
+    return {
+      source: 'SESSION', id: u.id, name: u.name, role: u.role,
+      permissions: permissionsForManagementUser_(u), pinVersion: u.pinVersion
+    };
+  }
+
+  props.deleteProperty(key);
+  return null;
+}
+
+function isValidAdminSession_(token) {
+  return !!adminSessionContext_(token);
 }
 
 function cleanupExpiredAdminSessions_() {
   const props = PropertiesService.getScriptProperties();
   const all = props.getProperties();
   const now = Date.now();
-
   Object.keys(all).forEach(function(key) {
     if (key.indexOf(ADMIN_SESSION_PREFIX) !== 0) return;
-    const expiresAt = Number(all[key]);
+    const expiresAt = Number(String(all[key] || '').split('|')[0]);
     if (!expiresAt || now >= expiresAt) props.deleteProperty(key);
+  });
+}
+
+function hasManagementPermission_(ctx, permission) {
+  if (!ctx) return false;
+  const p = ctx.permissions || [];
+  return p.indexOf('*') !== -1 || p.indexOf(permission) !== -1;
+}
+
+function assertManagementPermission_(pinOrToken, permission) {
+  const ctx = managementContext_(pinOrToken);
+  if (!ctx) throw new Error('Admin session expired. Please enter the PIN again.');
+  if (!hasManagementPermission_(ctx, permission)) throw new Error('You do not have access to this area.');
+  return ctx;
+}
+
+function assertFullAdmin_(pinOrToken) {
+  const ctx = managementContext_(pinOrToken);
+  if (!ctx) throw new Error('Admin session expired. Please enter the PIN again.');
+  if (!hasManagementPermission_(ctx, '*')) throw new Error('Full Admin access is required.');
+  return ctx;
+}
+
+function assertGithubRpcAccess_(action, args) {
+  const noAdminAuth = new Set([
+    'verifyPin','createAdminSession','logoutAdminSession',
+    'getPortalPlayers','createPlayerSession','createPlayerSetupSession','verifyPlayerSession',
+    'logoutPlayerSession','choosePlayerPin','getPlayerPortalData','submitPortalVote','submitVote',
+    'getPublicVotingData','getPublicSpectatorData',
+    'validateManagementResetToken','completeManagementPinReset'
+  ]);
+  if (noAdminAuth.has(action)) return true;
+
+  const adminActions = new Set([
+    'getAllPlayersForAdmin','addPlayer','updatePlayer','getPlayerPinAdminData','resetPlayerPin',
+    'getManagementAdminData','saveManagementUser','revokeManagementUser','revokeManagementSessions','sendManagementPinReset'
+  ]);
+  const votingActions = new Set(['getVotingAdminData','openVoting','closeVoting','getVotingSnapshot']);
+  const subsActions = new Set(['getSubsTrackerData','setSubsStatus']);
+  const readActions = new Set(['getInitData','getMatches','getSeasonStats','getPlayerMinutesData','getGhostPlayerPortalData','getGhostPlayerPortalDataDirect']);
+
+  let permission = 'match';
+  if (adminActions.has(action)) permission = '*';
+  else if (votingActions.has(action)) permission = 'voting';
+  else if (subsActions.has(action)) permission = 'subs';
+  else if (readActions.has(action)) permission = 'read';
+
+  if (permission === '*') assertFullAdmin_(args && args[0]);
+  else assertManagementPermission_(args && args[0], permission);
+  return true;
+}
+
+function getManagementAdminData(pin) {
+  assertFullAdmin_(pin);
+  return {
+    users: managementRows_().filter(function(u){ return u.active; }).map(function(u) {
+      return {
+        id: u.id, name: u.name, email: u.email, role: u.role,
+        customAccess: u.customAccess || [], playerAccessToo: !!u.playerAccessToo,
+        linkedPlayer: u.linkedPlayer || '', hasPin: !!u.pinHash
+      };
+    }).sort(function(a,b){ return a.name.localeCompare(b.name); }),
+    players: getPlayers_().map(function(p){ return p.name; })
+  };
+}
+
+function linkedPlayerPin_(playerName) {
+  const sh = getSS_().getSheetByName(SHEETS.PLAYERS);
+  if (!sh || sh.getLastRow() < 2) return '';
+  const rows = sh.getRange(2, 1, sh.getLastRow() - 1, Math.max(sh.getLastColumn(), 9)).getValues();
+  for (let i = 0; i < rows.length; i++) {
+    if (String(rows[i][0] || '').trim() === String(playerName || '').trim()) {
+      return String(rows[i][7] || '').trim();
+    }
+  }
+  return '';
+}
+
+function setLinkedPlayerPin_(playerName, newPin) {
+  const sh = getSS_().getSheetByName(SHEETS.PLAYERS);
+  if (!sh || sh.getLastRow() < 2) throw new Error('Linked player not found.');
+  const rows = sh.getRange(2, 1, sh.getLastRow() - 1, Math.max(sh.getLastColumn(), 9)).getValues();
+  for (let i = 0; i < rows.length; i++) {
+    if (String(rows[i][0] || '').trim() === String(playerName || '').trim()) {
+      sh.getRange(i + 2, 8).setValue(String(newPin));
+      sh.getRange(i + 2, 9).setValue(true);
+      return true;
+    }
+  }
+  throw new Error('Linked player not found.');
+}
+
+function saveManagementUser(pin, data) {
+  assertFullAdmin_(pin);
+  data = data || {};
+  const name = String(data.name || '').trim();
+  const email = String(data.email || '').trim();
+  const role = String(data.role || 'READ_ONLY').trim();
+  const playerAccessToo = !!data.playerAccessToo;
+  const linkedPlayer = String(data.linkedPlayer || '').trim();
+  const allowedRoles = Object.keys(MANAGEMENT_ROLES);
+  if (!name) throw new Error('Enter a name.');
+  if (allowedRoles.indexOf(role) === -1) throw new Error('Choose a valid access level.');
+  if (email && !/^\S+@\S+\.\S+$/.test(email)) throw new Error('Enter a valid email address.');
+  if (playerAccessToo && !linkedPlayer) throw new Error('Choose the linked player for Player access too.');
+
+  const allowedCustom = ['match','voting','subs','read'];
+  const customAccess = (Array.isArray(data.customAccess) ? data.customAccess : []).filter(function(x){ return allowedCustom.indexOf(x) !== -1; });
+  const sh = ensureManagementSheet_();
+  let existing = data.id ? getManagementUserById_(data.id) : null;
+  const now = new Date();
+
+  if (!existing) {
+    const id = 'MU-' + Utilities.getUuid();
+    let hash = '';
+    let version = 1;
+    if (playerAccessToo && linkedPlayer) {
+      const existingPlayerPin = linkedPlayerPin_(linkedPlayer);
+      if (existingPlayerPin) hash = pinHash_(id, existingPlayerPin);
+    }
+    sh.appendRow([id,name,email,role,customAccess.join(','),playerAccessToo,linkedPlayer,hash,version,true,now,now]);
+    return id;
+  }
+
+  let hash = existing.pinHash;
+  let version = Number(existing.pinVersion || 1);
+  const linkChanged = existing.playerAccessToo !== playerAccessToo || existing.linkedPlayer !== linkedPlayer;
+  if (playerAccessToo && linkedPlayer && linkChanged) {
+    const existingPlayerPin = linkedPlayerPin_(linkedPlayer);
+    if (existingPlayerPin) {
+      hash = pinHash_(existing.id, existingPlayerPin);
+      version += 1;
+      revokeManagementSessionsById_(existing.id);
+    }
+  }
+  sh.getRange(existing.row, 2, 1, 9).setValues([[
+    name,email,role,customAccess.join(','),playerAccessToo,linkedPlayer,hash,version,true
+  ]]);
+  sh.getRange(existing.row, 12).setValue(now);
+  return existing.id;
+}
+
+function revokeManagementSessionsById_(id) {
+  const props = PropertiesService.getScriptProperties();
+  const all = props.getProperties();
+  Object.keys(all).forEach(function(key) {
+    if (key.indexOf(ADMIN_SESSION_PREFIX) !== 0) return;
+    const parts = String(all[key] || '').split('|');
+    if (parts[1] === 'USER' && parts[2] === String(id)) props.deleteProperty(key);
+  });
+}
+
+function revokeManagementSessions(pin, id) {
+  assertFullAdmin_(pin);
+  const u = getManagementUserById_(id);
+  if (!u) throw new Error('Management user not found.');
+  revokeManagementSessionsById_(u.id);
+  return true;
+}
+
+function revokeManagementUser(pin, id) {
+  assertFullAdmin_(pin);
+  const u = getManagementUserById_(id);
+  if (!u) throw new Error('Management user not found.');
+  const sh = ensureManagementSheet_();
+  sh.getRange(u.row, 8).setValue('');
+  sh.getRange(u.row, 9).setValue(Number(u.pinVersion || 1) + 1);
+  sh.getRange(u.row, 10).setValue(false);
+  sh.getRange(u.row, 12).setValue(new Date());
+  revokeManagementSessionsById_(u.id);
+  return true;
+}
+
+function createManagementResetToken_(u) {
+  const token = Utilities.getUuid() + Utilities.getUuid().replace(/-/g, '');
+  const payload = {
+    id: u.id,
+    expiresAt: Date.now() + MANAGEMENT_RESET_MINUTES * 60 * 1000
+  };
+  PropertiesService.getScriptProperties().setProperty(MANAGEMENT_RESET_PREFIX + token, JSON.stringify(payload));
+  return token;
+}
+
+function sendManagementPinReset(pin, id) {
+  assertFullAdmin_(pin);
+  const u = getManagementUserById_(id);
+  if (!u || !u.active) throw new Error('Management user not found.');
+  if (!u.email) throw new Error('Add an email address first.');
+  const token = createManagementResetToken_(u);
+  const link = MANAGEMENT_RESET_URL + '?token=' + encodeURIComponent(token);
+  const subject = 'Perranporth AFC management PIN reset';
+  const plain = 'Hi ' + u.name + ',\n\nUse this link to choose a new Perranporth management PIN. The link expires in ' + MANAGEMENT_RESET_MINUTES + ' minutes:\n\n' + link + '\n\nIf you did not expect this email, you can ignore it.';
+  const html = '<p>Hi ' + escapeHtmlEmail_(u.name) + ',</p><p>Use the button below to choose a new Perranporth management PIN. The link expires in ' + MANAGEMENT_RESET_MINUTES + ' minutes.</p><p><a href="' + link + '" style="display:inline-block;background:#0b5ea8;color:white;text-decoration:none;padding:12px 18px;border-radius:8px;font-weight:bold">Reset management PIN</a></p><p>If you did not expect this email, you can ignore it.</p>';
+  MailApp.sendEmail({to:u.email,subject:subject,body:plain,htmlBody:html,name:'Perranporth AFC'});
+  return true;
+}
+
+function escapeHtmlEmail_(s) {
+  return String(s || '').replace(/[&<>"']/g, function(c) {
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  });
+}
+
+function resetTokenPayload_(token) {
+  token = String(token || '').trim();
+  if (!token) throw new Error('This reset link is invalid.');
+  const props = PropertiesService.getScriptProperties();
+  const raw = props.getProperty(MANAGEMENT_RESET_PREFIX + token);
+  if (!raw) throw new Error('This reset link is invalid or has already been used.');
+  let payload;
+  try { payload = JSON.parse(raw); } catch (e) { payload = null; }
+  if (!payload || !payload.id || !payload.expiresAt || Date.now() >= Number(payload.expiresAt)) {
+    props.deleteProperty(MANAGEMENT_RESET_PREFIX + token);
+    throw new Error('This reset link has expired.');
+  }
+  const u = getManagementUserById_(payload.id);
+  if (!u || !u.active) throw new Error('Management access is no longer active.');
+  return { token: token, user: u };
+}
+
+function validateManagementResetToken(token) {
+  const x = resetTokenPayload_(token);
+  return { name: x.user.name, playerAccessToo: !!x.user.playerAccessToo };
+}
+
+function completeManagementPinReset(token, newPin) {
+  const x = resetTokenPayload_(token);
+  newPin = String(newPin || '').trim();
+  const required = x.user.playerAccessToo ? /^\d{4}$/ : /^\d{4,8}$/;
+  if (!required.test(newPin)) {
+    throw new Error(x.user.playerAccessToo ? 'Choose a 4-digit PIN.' : 'Choose a 4 to 8 digit PIN.');
+  }
+  return withLock_(function() {
+    const current = getManagementUserById_(x.user.id);
+    if (!current || !current.active) throw new Error('Management access is no longer active.');
+    const sh = ensureManagementSheet_();
+    const nextVersion = Number(current.pinVersion || 1) + 1;
+    sh.getRange(current.row, 8).setValue(pinHash_(current.id, newPin));
+    sh.getRange(current.row, 9).setValue(nextVersion);
+    sh.getRange(current.row, 12).setValue(new Date());
+    if (current.playerAccessToo) {
+      if (!current.linkedPlayer) throw new Error('No player is linked to this management account.');
+      setLinkedPlayerPin_(current.linkedPlayer, newPin);
+    }
+    revokeManagementSessionsById_(current.id);
+    PropertiesService.getScriptProperties().deleteProperty(MANAGEMENT_RESET_PREFIX + x.token);
+    return true;
   });
 }
 
