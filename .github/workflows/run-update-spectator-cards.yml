@@ -1,4 +1,4 @@
-name: Apply prepared backend patch
+name: Update spectator card indicators
 on:
   push:
     branches: [main]
@@ -11,13 +11,10 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
       - run: python .github/scripts/update_spectator_cards.py
       - run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add apps-script/code.gs
-          if git diff --cached --quiet; then exit 0; fi
-          git commit -m "Add management access roles and email PIN resets"
+          git add live.html
+          git commit -m "Show cards on spectator lineup"
           git push
