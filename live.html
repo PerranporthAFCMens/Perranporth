@@ -19,7 +19,7 @@
     .scorers{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}.scorerCol{min-width:0}.scorer{font-size:13px;padding:6px 0;border-bottom:1px solid #e8f0f5}.scorer:last-child{border-bottom:0}.right{text-align:right}
     .tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;background:#edf4f8;padding:5px;border-radius:14px}.tab{border:0;border-radius:10px;min-height:44px;font-weight:900;background:transparent;color:#466071}.tab.active{background:linear-gradient(135deg,var(--blue),var(--blue2));color:white;box-shadow:0 3px 10px #0b5ea82b}
     .lineup{display:grid;grid-template-columns:1fr 1fr;gap:10px}.lineupBox{border-radius:16px;padding:12px}.lineupBox.pitch{background:linear-gradient(180deg,#e8f8ee,#f8fffa);border:1px solid #bfe5cc}.lineupBox.bench{background:linear-gradient(180deg,#eef5fb,#fbfdff);border:1px solid #cddfea}.lineupTitle{font-size:12px;text-transform:uppercase;letter-spacing:.5px;font-weight:900;margin-bottom:8px}.pitch .lineupTitle{color:#1b6c38}.bench .lineupTitle{color:#315a78}
-    .player{padding:8px 9px;border-bottom:1px solid #e4edf2;font-size:14px;font-weight:800;border-radius:9px}.player:last-child{border-bottom:0}.player.onfield{background:#fff;margin-bottom:5px;border:1px solid #d9eedf}.player.benched{background:#fff;margin-bottom:5px;border:1px solid #dde8ef}.tag{font-size:10px;border-radius:999px;padding:4px 7px;margin-left:6px;font-weight:900;white-space:nowrap}.tag.on{background:var(--green2);color:#12652f}.tag.off{background:var(--red2);color:#9e2323}.tag.return{background:var(--purple2);color:#56329d}
+    .player{padding:8px 9px;border-bottom:1px solid #e4edf2;font-size:14px;font-weight:800;border-radius:9px}.player:last-child{border-bottom:0}.player.onfield{background:#fff;margin-bottom:5px;border:1px solid #d9eedf}.player.benched{background:#fff;margin-bottom:5px;border:1px solid #dde8ef}.player.sentoff{background:#fff7f7;border-color:#efcaca}.tag{font-size:10px;border-radius:999px;padding:4px 7px;margin-left:6px;font-weight:900;white-space:nowrap}.tag.return{background:var(--purple2);color:#56329d}.cardMark{display:inline-block;width:9px;height:14px;border-radius:2px;margin-left:7px;vertical-align:-2px;box-shadow:0 0 0 1px #00000018}.cardMark.yellow{background:#f4cf14}.cardMark.red{background:#d62828}
     .event{display:grid;grid-template-columns:48px 30px 1fr;gap:8px;align-items:start;padding:11px 9px;border-bottom:1px solid #e7eef3;border-radius:10px}.event:nth-child(odd){background:#f8fbfd}.eventMin{font-weight:900;color:var(--blue)}.eventIcon{font-size:19px;text-align:center}.eventText{font-size:14px;line-height:1.35}.eventText b{display:block}.eventSub{font-size:12px;color:var(--muted);margin-top:2px}
     .updated{text-align:center;font-size:11px;color:var(--muted);padding:4px 0 1px}.empty{text-align:center;padding:30px 12px;color:var(--muted)}
     .demo{background:linear-gradient(135deg,#fff5cf,#fffaf0);border-color:#ead182}.demoTitle{font-weight:900;color:#715300;margin-bottom:5px}.demoBtns{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:10px}.demoBtn{border:0;border-radius:11px;min-height:44px;padding:8px;font-size:12px;font-weight:900;background:#fff;border:1px solid #dcc46f;color:#5f4c00;box-shadow:0 2px 7px #7b5f0014}.demoBtn.interchange{background:var(--purple2);border-color:#cdbcf5;color:#553293}
@@ -92,7 +92,7 @@
     status:'LIVE', minute:67, home:'Perranporth', away:'TEST FC', competition:'Intermediate Cup • Round 1', homeScore:2, awayScore:1,
     allPlayers:['Leo Osborne','Jake Allen','Dan Gilbert','Jack Smith','George Parkes','Luke Watson-Read','Kierren Faulkner','Rian Faulkner','Alex Taylor','Tom Goodman','Fin Stribley','Ben Lawrence','Dan Ware','Gav Counter','Tyreece Gallaway'],
     onPitch:['Leo Osborne','Jake Allen','Dan Gilbert','Jack Smith','George Parkes','Luke Watson-Read','Kierren Faulkner','Rian Faulkner','Alex Taylor','Tom Goodman','Ben Lawrence'],
-    everReturned:[],
+    everReturned:[], yellowCards:[], redCards:[], dismissed:[],
     homeGoals:[{m:18,p:'Alex Taylor'},{m:54,p:'Tom Goodman'}], awayGoals:[{m:61,p:'TEST FC'}],
     events:[
       {m:64,i:'🔄',t:'Interchange',s:'Ben Lawrence on • Fin Stribley off'},
@@ -116,9 +116,10 @@
     $('homeScorers').innerHTML=state.homeGoals.map(g=>`<div class="scorer">⚽ ${esc(g.p)} ${g.m}'</div>`).join('');
     $('awayScorers').innerHTML=state.awayGoals.map(g=>`<div class="scorer">${g.m}' ${esc(g.p)} ⚽</div>`).join('');
 
-    $('onPitch').innerHTML=state.onPitch.map(p=>`<div class="player onfield">${esc(p)}${state.everReturned.includes(p)?'<span class="tag return">RETURNED</span>':'<span class="tag on">ON</span>'}</div>`).join('');
+    const cardFor=p=>state.redCards.includes(p)?'<span class="cardMark red" title="Red card"></span>':state.yellowCards.includes(p)?'<span class="cardMark yellow" title="Yellow card"></span>':'';
+    $('onPitch').innerHTML=state.onPitch.map(p=>`<div class="player onfield">${esc(p)}${cardFor(p)}${state.everReturned.includes(p)?'<span class="tag return">RETURNED</span>':''}</div>`).join('');
     const off=state.allPlayers.filter(p=>!state.onPitch.includes(p));
-    $('bench').innerHTML=off.map(p=>`<div class="player benched">${esc(p)}<span class="tag off">AVAILABLE</span></div>`).join('') || '<div class="small">Everyone is currently on the pitch</div>';
+    $('bench').innerHTML=off.map(p=>`<div class="player benched${state.dismissed.includes(p)?' sentoff':''}">${esc(p)}${cardFor(p)}</div>`).join('') || '<div class="small">Everyone is currently on the pitch</div>';
     $('events').innerHTML=state.events.map(e=>`<div class="event"><div class="eventMin">${e.m}'</div><div class="eventIcon">${e.i}</div><div class="eventText"><b>${esc(e.t)}</b>${e.s?`<div class="eventSub">${esc(e.s)}</div>`:''}</div></div>`).join('');
     $('updated').textContent='Last updated '+new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'});
   }
@@ -169,7 +170,7 @@
     function applyLiveData(d){
       if(!d || !d.live){
         state.status='NONE'; state.minute=0; state.home='Perranporth'; state.away=''; state.competition=''; state.homeScore=0; state.awayScore=0;
-        state.allPlayers=[]; state.onPitch=[]; state.everReturned=[]; state.homeGoals=[]; state.awayGoals=[]; state.events=[];
+        state.allPlayers=[]; state.onPitch=[]; state.everReturned=[]; state.yellowCards=[]; state.redCards=[]; state.dismissed=[]; state.homeGoals=[]; state.awayGoals=[]; state.events=[];
         render();
         $('statusPill').textContent='NO LIVE MATCH'; $('statusPill').className='livepill none';
         $('minute').textContent='No live match at the moment';
@@ -185,7 +186,10 @@
       state.home=d.homeTeam||'Perranporth'; state.away=d.awayTeam||''; state.competition=(d.match&&d.match.competition)||'';
       state.homeScore=Number(d.homeScore||0); state.awayScore=Number(d.awayScore||0);
       state.onPitch=(d.onPitch||[]).map(p=>typeof p==='string'?p:p.name).filter(Boolean);
-      state.allPlayers=state.onPitch.concat((d.available||[]),(d.dismissed||[])).filter((v,i,a)=>a.indexOf(v)===i);
+      state.dismissed=(d.dismissed||[]).filter(Boolean);
+      state.allPlayers=state.onPitch.concat((d.available||[]),state.dismissed).filter((v,i,a)=>a.indexOf(v)===i);
+      state.yellowCards=[...new Set((d.events||[]).filter(e=>e.type==='Yellow Card'&&e.player).map(e=>e.player))];
+      state.redCards=[...new Set((d.events||[]).filter(e=>e.type==='Red Card'&&e.player).map(e=>e.player))];
 
       const interchangeEvents=(d.events||[]).filter(e=>e.type==='Substitution');
       const returned=new Set();
