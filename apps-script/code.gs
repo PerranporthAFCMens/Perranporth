@@ -166,6 +166,8 @@ function handlePublicApi_(api, params) {
       envelope = { ok: true, result: getPublicDashboardData() };
     } else if (api === 'dashboardHistoric') {
       envelope = { ok: true, result: getHistoricalDashboardData() };
+    } else if (api === 'spectator') {
+      envelope = { ok: true, result: getPublicSpectatorData() };
     } else if (api === 'rpc') {
       const payloadRaw = String((params && params.payload) || '');
       if (!payloadRaw) throw new Error('Missing request payload.');
@@ -186,6 +188,72 @@ function handlePublicApi_(api, params) {
   return ContentService
     .createTextOutput(callback + '(' + JSON.stringify(envelope) + ');')
     .setMimeType(ContentService.MimeType.JAVASCRIPT);
+}
+
+function getPublicSpectatorData() {
+  const liveMatches = getMatches_(true).filter(m => String(m.status || '').toLowerCase() === 'live');
+  if (!liveMatches.length) {
+    return {
+      live: false,
+      generatedAt: Utilities.formatDate(new Date(), 'Europe/London', 'dd/MM/yyyy HH:mm:ss')
+    };
+  }
+
+  const match = liveMatches[liveMatches.length - 1];
+  const events = getEvents_(match.matchId).slice().sort((a,b) => Number(a.minute || 0) - Number(b.minute || 0));
+  const score = calculateScore_(events);
+  const clock = getMatchClock_(match.matchId);
+  const squad = matchEventSquad_(match.matchId);
+  const onPitch = Array.from(onPitchSet_(match.matchId, events));
+  const onSet = new Set(onPitch);
+  const redSet = new Set(events.filter(e => e.type === 'Red Card' && e.player).map(e => e.player));
+  const lineup = getLineup_(match.matchId) || {};
+  const positions = Array.isArray(lineup.positions) ? lineup.positions : [];
+  const posByPlayer = {};
+  positions.forEach(p => { if (p && p.player) posByPlayer[p.player] = p; });
+
+  const allPlayers = squad.map(p => p.player).filter(Boolean);
+  const available = allPlayers.filter(p => !onSet.has(p) && !redSet.has(p));
+  const dismissed = allPlayers.filter(p => redSet.has(p));
+
+  const publicEvents = events.map(e => ({
+    minute: Number(e.minute || 0),
+    type: String(e.type || ''),
+    team: String(e.team || ''),
+    player: String(e.player || ''),
+    secondaryPlayer: String(e.secondaryPlayer || ''),
+    goalType: String(e.goalType || ''),
+    cardReason: String(e.cardReason || '')
+  }));
+
+  const home = String(match.venue || '').toLowerCase() !== 'away';
+  return {
+    live: true,
+    match: {
+      matchId: match.matchId,
+      date: match.date,
+      kickoff: match.kickoff,
+      opponent: match.opponent,
+      venue: match.venue,
+      competition: match.competition,
+      formation: (lineup && lineup.formation) || match.formation || ''
+    },
+    homeTeam: home ? 'Perranporth' : match.opponent,
+    awayTeam: home ? match.opponent : 'Perranporth',
+    homeScore: home ? Number(score.ours || 0) : Number(score.opp || 0),
+    awayScore: home ? Number(score.opp || 0) : Number(score.ours || 0),
+    clock: clock,
+    onPitch: onPitch.map(name => ({
+      name: name,
+      x: posByPlayer[name] ? Number(posByPlayer[name].x || 0) : 0,
+      y: posByPlayer[name] ? Number(posByPlayer[name].y || 0) : 0,
+      order: posByPlayer[name] ? Number(posByPlayer[name].order || 0) : 0
+    })),
+    available: available,
+    dismissed: dismissed,
+    events: publicEvents,
+    generatedAt: Utilities.formatDate(new Date(), 'Europe/London', 'dd/MM/yyyy HH:mm:ss')
+  };
 }
 
 function openSubsWithPin_(pin) {

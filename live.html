@@ -87,6 +87,7 @@
 <script>
 (() => {
   const demo = new URLSearchParams(location.search).get('demo') === '1';
+  const APP_URL='https://script.google.com/macros/s/AKfycbyHHPOgGsImS9Kvr3SdZiKUGp3ZrbnOoJnIPUckm_Y9hH1K9b_j_Kgmw6UhzVMAyQ0q/exec';
   const state = {
     status:'LIVE', minute:67, home:'Perranporth', away:'TEST FC', competition:'Intermediate Cup • Round 1', homeScore:2, awayScore:1,
     allPlayers:['Leo Osborne','Jake Allen','Dan Gilbert','Jack Smith','George Parkes','Luke Watson-Read','Kierren Faulkner','Rian Faulkner','Alex Taylor','Tom Goodman','Fin Stribley','Ben Lawrence','Dan Ware','Gav Counter','Tyreece Gallaway'],
@@ -155,10 +156,78 @@
       render();
     }));
   } else {
-    $('statusPill').textContent='NO LIVE MATCH'; $('statusPill').className='livepill none';
-    $('minute').textContent='No live match at the moment';
+    function liveEventView(e){
+      const m=Number(e.minute||0);
+      if(e.type==='Goal' && String(e.team||'')!=='Opposition') return {m,i:'⚽',t:'GOAL! '+(e.player||'Perranporth'),s:e.secondaryPlayer?'Assist: '+e.secondaryPlayer:''};
+      if(e.type==='Conceded Goal' || (e.type==='Goal' && String(e.team||'')==='Opposition')) return {m,i:'⚽',t:'Goal — '+state.away,s:''};
+      if(e.type==='Substitution') return {m,i:'🔄',t:'Interchange',s:(e.secondaryPlayer||'Player')+' on • '+(e.player||'Player')+' off'};
+      if(e.type==='Yellow Card') return {m,i:'🟨',t:(e.player||'Player')+' booked',s:e.cardReason||''};
+      if(e.type==='Red Card') return {m,i:'🟥',t:(e.player||'Player')+' sent off',s:e.cardReason||''};
+      return null;
+    }
+
+    function applyLiveData(d){
+      if(!d || !d.live){
+        state.status='NONE'; state.minute=0; state.home='Perranporth'; state.away=''; state.competition=''; state.homeScore=0; state.awayScore=0;
+        state.allPlayers=[]; state.onPitch=[]; state.everReturned=[]; state.homeGoals=[]; state.awayGoals=[]; state.events=[];
+        render();
+        $('statusPill').textContent='NO LIVE MATCH'; $('statusPill').className='livepill none';
+        $('minute').textContent='No live match at the moment';
+        $('onPitch').innerHTML='<div class="empty">Lineup will appear when the match goes live.</div>';
+        $('bench').innerHTML='';
+        $('events').innerHTML='<div class="empty">No live updates yet.</div>';
+        return;
+      }
+
+      const c=d.clock||{};
+      state.status=c.finishedAt?'FT':c.onBreak?'HT':'LIVE';
+      state.minute=Math.max(0,Math.floor(Number(c.elapsedSeconds||0)/60));
+      state.home=d.homeTeam||'Perranporth'; state.away=d.awayTeam||''; state.competition=(d.match&&d.match.competition)||'';
+      state.homeScore=Number(d.homeScore||0); state.awayScore=Number(d.awayScore||0);
+      state.onPitch=(d.onPitch||[]).map(p=>typeof p==='string'?p:p.name).filter(Boolean);
+      state.allPlayers=state.onPitch.concat((d.available||[]),(d.dismissed||[])).filter((v,i,a)=>a.indexOf(v)===i);
+
+      const interchangeEvents=(d.events||[]).filter(e=>e.type==='Substitution');
+      const returned=new Set();
+      const seenOn={};
+      interchangeEvents.forEach(e=>{
+        if(e.secondaryPlayer){
+          seenOn[e.secondaryPlayer]=(seenOn[e.secondaryPlayer]||0)+1;
+          if(seenOn[e.secondaryPlayer]>1) returned.add(e.secondaryPlayer);
+        }
+      });
+      state.everReturned=Array.from(returned);
+
+      const perranHome=state.home==='Perranporth';
+      state.homeGoals=[]; state.awayGoals=[];
+      (d.events||[]).forEach(e=>{
+        const isOurs=e.type==='Goal' && String(e.team||'')!=='Opposition';
+        const isOpp=e.type==='Conceded Goal' || (e.type==='Goal' && String(e.team||'')==='Opposition');
+        if(isOurs){(perranHome?state.homeGoals:state.awayGoals).push({m:Number(e.minute||0),p:e.player||'Perranporth'});}
+        if(isOpp){(perranHome?state.awayGoals:state.homeGoals).push({m:Number(e.minute||0),p:(d.match&&d.match.opponent)||'Opposition'});}
+      });
+      state.events=(d.events||[]).slice().reverse().map(liveEventView).filter(Boolean);
+      render();
+    }
+
+    function loadLive(){
+      const cb='spectatorCb_'+Date.now()+'_'+Math.random().toString(36).slice(2);
+      const script=document.createElement('script');
+      let done=false;
+      const cleanup=()=>{if(script.parentNode)script.parentNode.removeChild(script);try{delete window[cb]}catch(e){window[cb]=undefined}};
+      window[cb]=payload=>{done=true;cleanup();if(payload&&payload.ok)applyLiveData(payload.result);};
+      script.onerror=()=>cleanup();
+      script.src=APP_URL+'?api=spectator&callback='+encodeURIComponent(cb)+'&_='+Date.now();
+      document.body.appendChild(script);
+      setTimeout(()=>{if(!done)cleanup();},12000);
+    }
+
+    $('statusPill').textContent='LOADING'; $('statusPill').className='livepill none';
+    $('minute').textContent='Checking for a live match…';
+    loadLive();
+    setInterval(loadLive,15000);
   }
-  render();
+  if(demo) render();
 })();
 </script>
 </body>
