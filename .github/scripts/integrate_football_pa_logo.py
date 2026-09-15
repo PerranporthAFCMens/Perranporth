@@ -1,5 +1,6 @@
 from pathlib import Path
 
+# Integrate the Football PA logo into the dark landing-page design.
 svg = '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 620" role="img" aria-labelledby="t d">
 <title id="t">Football PA</title><desc id="d">Football PA logo - tactics clipboard, football and checkmark</desc>
 <defs>
