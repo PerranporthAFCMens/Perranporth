@@ -7,7 +7,7 @@ The project started as a Google Sheets + Apps Script tool and is being progressi
 ## Live app
 
 **Control Centre:**
-https://ajtbenanbar.github.io/Perranporth/
+https://PerranporthAFCMens.github.io/Perranporth/
 
 ## What it does
 

@@ -27,10 +27,10 @@ The migration to GitHub was done because Apps Script pages were visibly slower a
 ### GitHub
 
 Repository:
-- `ajtbenanbar/Perranporth`
+- `PerranporthAFCMens/Perranporth`
 
 Pages root:
-- `https://ajtbenanbar.github.io/Perranporth/`
+- `https://PerranporthAFCMens.github.io/Perranporth/`
 
 Key GitHub files currently in use:
 - `index.html` — Control Centre

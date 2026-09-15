@@ -38,7 +38,7 @@ Package contents:
 ## GitHub state
 
 Repository:
-- `ajtbenanbar/Perranporth`
+- `PerranporthAFCMens/Perranporth`
 
 `bridge-mc2.js` has already been added to GitHub.
 

@@ -142,7 +142,7 @@ function handleMc2RpcPage_(params) {
     '<script>' +
     'window.top.postMessage(' +
     safeJson +
-    ', "https://ajtbenanbar.github.io");' +
+    ', "https://PerranporthAFCMens.github.io");' +
     '</script>';
 
   return HtmlService
@@ -3119,7 +3119,7 @@ function getVotingAdminData(pin) {
     openMatchId,
     matchName: String(s['Voting Match Name'] || ''),
     badgeUrl: String(s['Voting Badge URL'] || ''),
-    votingUrl: 'https://ajtbenanbar.github.io/Perranporth/vote.html',
+    votingUrl: 'https://PerranporthAFCMens.github.io/Perranporth/vote.html',
     matches: getMatches_(true),
     players: getPlayers_()
   };
