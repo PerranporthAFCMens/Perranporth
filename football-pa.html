@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#071a2d">
+  <title>Football PA — Less admin. More football.</title>
+  <meta name="description" content="Football PA helps grassroots football clubs manage matchday, players, live updates, voting, subs, minutes and more — all in one place.">
+  <style>
+    :root{
+      --navy:#071a2d;
+      --navy2:#0d2945;
+      --blue:#1687ff;
+      --blue2:#5cb5ff;
+      --lime:#c9ff55;
+      --ink:#10202f;
+      --muted:#66798b;
+      --bg:#f5f8fb;
+      --card:#fff;
+      --line:#dbe5ee;
+      --shadow:0 18px 50px rgba(9,38,67,.12);
+    }
+    *{box-sizing:border-box}
+    html{scroll-behavior:smooth}
+    body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink);line-height:1.5}
+    a{text-decoration:none;color:inherit}
+    .wrap{max-width:1160px;margin:0 auto;padding:0 20px}
+    .nav{display:flex;align-items:center;justify-content:space-between;padding:22px 0}
+    .brand{display:flex;align-items:center;gap:12px;color:#fff;font-weight:900;letter-spacing:-.4px}
+    .brandMark{width:42px;height:42px;border-radius:13px;background:linear-gradient(135deg,var(--blue),var(--blue2));display:grid;place-items:center;font-size:21px;box-shadow:0 8px 20px rgba(22,135,255,.28)}
+    .brandText{display:flex;flex-direction:column;line-height:1}
+    .brandText strong{font-size:20px}
+    .brandText span{font-size:10px;color:#9eb8cf;margin-top:5px;font-weight:700;letter-spacing:.9px;text-transform:uppercase}
+    .navLinks{display:flex;align-items:center;gap:22px;color:#c3d1de;font-size:14px}
+    .btn{display:inline-flex;align-items:center;justify-content:center;min-height:50px;padding:0 20px;border-radius:14px;font-weight:900;border:0;cursor:pointer;background:var(--blue);color:#fff;box-shadow:0 10px 26px rgba(22,135,255,.24)}
+    .btn.alt{background:#fff;color:var(--navy);box-shadow:none;border:1px solid var(--line)}
+    header{background:radial-gradient(circle at 75% 10%,#174d7d 0,transparent 35%),linear-gradient(150deg,#061625,#0b2540 62%,#0d3152);color:#fff;overflow:hidden}
+    .hero{display:grid;grid-template-columns:1.05fr .95fr;gap:48px;align-items:center;padding:72px 0 82px}
+    .kicker{display:inline-flex;align-items:center;gap:8px;border:1px solid #31526e;background:#ffffff0c;color:#cce7ff;border-radius:999px;padding:8px 12px;font-size:13px;font-weight:800}
+    h1{font-size:clamp(48px,7vw,78px);line-height:.95;letter-spacing:-3px;margin:20px 0 18px;max-width:760px}
+    .accent{color:var(--lime)}
+    .hero p{font-size:20px;color:#bed0df;max-width:690px;margin:0 0 28px}
+    .heroActions{display:flex;gap:12px;flex-wrap:wrap}
+    .hero .btn.alt{background:#ffffff0d;color:#fff;border-color:#3d5971}
+    .tiny{margin-top:14px;color:#8fa9bf;font-size:12px}
+    .mock{background:#071522;border:1px solid #264763;border-radius:28px;padding:14px;box-shadow:0 28px 70px rgba(0,0,0,.28)}
+    .screen{background:#edf6fc;border-radius:20px;overflow:hidden;color:var(--ink)}
+    .screenTop{background:linear-gradient(135deg,#0a2942,#0b67d1);padding:16px 17px;color:#fff;display:flex;align-items:center;justify-content:space-between}
+    .live{background:#dbf9e6;color:#116b35;border-radius:999px;padding:6px 10px;font-size:11px;font-weight:900}
+    .score{margin:14px;background:#fff;border-radius:17px;padding:18px;box-shadow:0 8px 22px rgba(18,55,86,.08)}
+    .scoreGrid{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;text-align:center;font-weight:900}
+    .scoreNum{font-size:42px;color:var(--navy)}
+    .cards{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 14px 14px}
+    .mini{background:#fff;border:1px solid #d8e6f0;border-radius:14px;padding:12px;font-size:12px}
+    .mini b{display:block;margin-bottom:7px;color:var(--navy)}
+    .row{padding:7px 0;border-bottom:1px solid #edf2f5}.row:last-child{border-bottom:0}
+    main{background:linear-gradient(180deg,#f6f9fc,#fff 38%,#f7f9fc)}
+    section{padding:74px 0}
+    .sectionHead{max-width:760px;margin:0 auto 34px;text-align:center}
+    .sectionHead .eyebrow{color:var(--blue);font-size:12px;font-weight:900;letter-spacing:1.2px;text-transform:uppercase}
+    .sectionHead h2{font-size:42px;line-height:1.05;letter-spacing:-1.8px;margin:8px 0 12px;color:var(--navy)}
+    .sectionHead p{font-size:18px;color:var(--muted);margin:0}
+    .features{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+    .feature{background:#fff;border:1px solid var(--line);border-radius:20px;padding:22px;box-shadow:0 8px 22px rgba(15,50,80,.05)}
+    .featureIcon{font-size:28px;margin-bottom:12px}
+    .feature h3{font-size:18px;margin:0 0 7px;color:var(--navy)}
+    .feature p{font-size:14px;color:var(--muted);margin:0}
+    .club{background:linear-gradient(135deg,#081b2f,#0c3559);border-radius:30px;padding:36px;color:#fff;display:grid;grid-template-columns:1fr 1fr;gap:30px;align-items:center;box-shadow:var(--shadow)}
+    .club h2{font-size:40px;line-height:1.08;letter-spacing:-1.5px;margin:0 0 12px}.club p{color:#bed2e4;font-size:17px}
+    .org{background:#ffffff0b;border:1px solid #365873;border-radius:18px;padding:15px;font-weight:900}
+    .teams{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:10px}.team{background:#fff;color:var(--navy);padding:12px;border-radius:12px;font-size:14px;font-weight:900}
+    .pricing{display:grid;grid-template-columns:1fr 1fr;gap:18px;max-width:900px;margin:0 auto}
+    .price{background:#fff;border:1px solid var(--line);border-radius:24px;padding:28px;box-shadow:var(--shadow);position:relative}
+    .price.featured{border:2px solid var(--blue)}
+    .pill{position:absolute;right:16px;top:16px;background:#eaf4ff;color:#0c62b8;padding:6px 9px;border-radius:999px;font-size:11px;font-weight:900}
+    .price h3{margin:0 0 7px;color:var(--navy);font-size:24px}.money{font-size:48px;font-weight:950;line-height:1;color:var(--navy)}.sub{font-size:14px;color:var(--muted)}
+    .price ul{padding-left:18px;color:#516679;line-height:1.9}
+    .interest{background:#fff;border:1px solid var(--line);border-radius:30px;box-shadow:var(--shadow);padding:36px;display:grid;grid-template-columns:1fr .92fr;gap:30px;align-items:center}
+    .interest h2{font-size:42px;line-height:1.04;letter-spacing:-1.6px;margin:8px 0 12px;color:var(--navy)}.interest p{font-size:17px;color:var(--muted)}
+    form{display:grid;gap:10px}input,select,textarea{width:100%;font:inherit;border:1px solid #cbd8e4;border-radius:12px;padding:13px 14px;background:#fbfdff;color:var(--ink)}textarea{min-height:105px;resize:vertical}.formNote{font-size:11px;color:#8494a4}.success{display:none;padding:13px 14px;border-radius:12px;background:#eaf8ef;color:#17683d;font-weight:800;font-size:14px}
+    footer{background:#071a2d;color:#89a3ba;padding:30px 0;text-align:center;font-size:12px}
+    @media(max-width:900px){.hero,.club,.interest{grid-template-columns:1fr}.features{grid-template-columns:1fr 1fr}.hero{padding-top:48px}.mock{max-width:620px}.pricing{grid-template-columns:1fr}}
+    @media(max-width:650px){.wrap{padding:0 14px}.navLinks{display:none}.hero{padding:40px 0 54px}.features{grid-template-columns:1fr}.cards,.teams{grid-template-columns:1fr}h1{letter-spacing:-2px}.sectionHead h2,.club h2,.interest h2{font-size:32px}section{padding:54px 0}.scoreNum{font-size:34px}}
+  </style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <nav class="nav">
+      <div class="brand">
+        <div class="brandMark">⚽</div>
+        <div class="brandText"><strong>Football PA</strong><span>by Grassroots HQ</span></div>
+      </div>
+      <div class="navLinks">
+        <a href="#features">Features</a><a href="#clubs">For Clubs</a><a href="#pricing">Pricing</a><a class="btn" href="#interest">Register interest</a>
+      </div>
+    </nav>
+    <div class="hero">
+      <div>
+        <div class="kicker">Built for grassroots football</div>
+        <h1>Less admin.<br><span class="accent">More football.</span></h1>
+        <p>Football PA gives grassroots clubs one place to manage matchday, players, live updates, voting, subs, minutes and more — without the spreadsheet chaos.</p>
+        <div class="heroActions"><a class="btn" href="#interest">Register your interest</a><a class="btn alt" href="#features">See what it does</a></div>
+        <div class="tiny">Early access • Designed with real grassroots teams</div>
+      </div>
+      <div class="mock">
+        <div class="screen">
+          <div class="screenTop"><div><b>Match Centre</b><div style="font-size:11px;opacity:.76">Live spectator view</div></div><div class="live">LIVE</div></div>
+          <div class="score"><div style="text-align:center;color:#1687ff;font-size:11px;font-weight:900;margin-bottom:8px">LEAGUE MATCH</div><div class="scoreGrid"><div>Home FC</div><div class="scoreNum">2–1</div><div>United</div></div><div style="text-align:center;margin-top:8px;color:#168044;font-weight:900">67'</div></div>
+          <div class="cards">
+            <div class="mini"><b>Current lineup</b><div class="row">Alex Taylor ⚽</div><div class="row">Tom Goodman <span style="color:#1687ff;font-weight:900">A</span></div><div class="row">Dan Gilbert <span style="display:inline-block;width:8px;height:12px;background:#f2ca16;border-radius:2px;vertical-align:-1px"></span></div></div>
+            <div class="mini"><b>Match updates</b><div class="row">64' 🔄 Interchange</div><div class="row">58' 🟨 Booking</div><div class="row">54' ⚽ Goal</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section id="features"><div class="wrap"><div class="sectionHead"><div class="eyebrow">One system</div><h2>Everything your team actually needs.</h2><p>Simple tools built around how grassroots football really works.</p></div><div class="features">
+    <div class="feature"><div class="featureIcon">⚽</div><h3>Match Centre</h3><p>Squads, starting XI, match clock, goals, assists, cards, substitutions and rolling interchanges.</p></div>
+    <div class="feature"><div class="featureIcon">📺</div><h3>Live Spectator Board</h3><p>Give supporters a clean public view of the score, scorers, lineup and live match updates.</p></div>
+    <div class="feature"><div class="featureIcon">👤</div><h3>Player Portal</h3><p>Players can see their own stats, appearances, minutes and team information from their phone.</p></div>
+    <div class="feature"><div class="featureIcon">🗳️</div><h3>Voting</h3><p>Run 3–2–1 voting and post-match awards without chasing responses through WhatsApp.</p></div>
+    <div class="feature"><div class="featureIcon">💷</div><h3>Subs Tracker</h3><p>See who owes what, track payments and review outstanding subs by match or player.</p></div>
+    <div class="feature"><div class="featureIcon">📊</div><h3>Season Dashboard</h3><p>Minutes, appearances, goals, assists and performance trends — all in one place.</p></div>
+  </div></div></section>
+
+  <section id="clubs"><div class="wrap"><div class="club"><div><div style="color:#8dc8ff;font-size:12px;font-weight:900;letter-spacing:1px;text-transform:uppercase">Club level</div><h2>One club. Multiple teams. One place to manage it all.</h2><p>Set up your club once, then run each team underneath it with separate players, managers, matches and data.</p><p>Club admins can see the whole organisation. Team managers only see what they need.</p></div><div class="org">YOUR CLUB<div class="teams"><div class="team">Men's 1st Team</div><div class="team">Reserves</div><div class="team">U18s</div><div class="team">Women's Team</div></div></div></div></div></section>
+
+  <section id="pricing"><div class="wrap"><div class="sectionHead"><div class="eyebrow">Simple pricing</div><h2>Clear, affordable club pricing.</h2><p>No per-player charges. No complicated licences.</p></div><div class="pricing">
+    <div class="price"><h3>Club Setup</h3><div class="money">£250</div><div class="sub">one-off</div><ul><li>Club branding and configuration</li><li>First team setup</li><li>Admin and manager access</li><li>Initial player import</li><li>Onboarding support</li></ul></div>
+    <div class="price featured"><div class="pill">Monthly</div><h3>Team Access</h3><div class="money">£15</div><div class="sub">per month for your first team</div><div style="font-size:27px;font-weight:950;color:#071a2d;margin-top:18px">£10 <span style="font-size:14px;color:#66798b;font-weight:800">/ month for every additional team</span></div><ul><li>All matchday tools</li><li>Live spectator board</li><li>Player portal and voting</li><li>Subs and minutes tracking</li><li>Club-level admin</li></ul></div>
+  </div></div></section>
+
+  <section id="interest"><div class="wrap"><div class="interest"><div><div class="eyebrow" style="color:#1687ff;font-size:12px;font-weight:900;letter-spacing:1px;text-transform:uppercase">Early access</div><h2>Interested in Football PA for your club?</h2><p>We're speaking to a small number of grassroots clubs before launch. Leave your details and we'll get back to you.</p><p style="font-size:13px">Your contact details are only used to respond to your enquiry.</p></div>
+    <form id="interestForm" action="#" method="post">
+      <input name="name" required placeholder="Your name">
+      <input name="email" type="email" required placeholder="Email address">
+      <input name="club" placeholder="Club name">
+      <select name="teams"><option value="">How many teams does your club have?</option><option>1</option><option>2–3</option><option>4–6</option><option>7–10</option><option>10+</option></select>
+      <textarea name="message" placeholder="Anything you'd like to tell us?"></textarea>
+      <button class="btn" type="submit">Register my interest</button>
+      <div id="successMsg" class="success">Thanks — we've got it. We'll be in touch shortly.</div>
+      <div class="formNote">The enquiry form is ready to connect to Formspree. Your destination email address will not be shown on this page.</div>
+    </form>
+  </div></div></section>
+</main>
+
+<footer><div class="wrap"><strong style="color:#d5e3ef">Football PA</strong> by Grassroots HQ · Less admin. More football.</div></footer>
+
+<script>
+  // When Formspree is ready, replace the form action with your Formspree endpoint
+  // and remove this submit handler.
+  document.getElementById('interestForm').addEventListener('submit', function(e){
+    e.preventDefault();
+    document.getElementById('successMsg').style.display='block';
+  });
+</script>
+</body>
+</html>
