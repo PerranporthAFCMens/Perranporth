@@ -571,21 +571,48 @@ async function initAdmin(){
 function saveSession(){if(!currentMatchId)return;try{localStorage.setItem('pmd_session',JSON.stringify({matchId:currentMatchId}))}catch(e){}}
 function clearSession(){try{localStorage.removeItem('pmd_session')}catch(e){}}
 async function restoreSession(){
-  let raw;try{raw=localStorage.getItem('pmd_session')}catch(e){return}
-  if(!raw)return;
-  let sess;try{sess=JSON.parse(raw)}catch(e){clearSession();return}
-  if(!sess||!sess.matchId)return;
+  let savedId='';
   try{
-    const squad=await call('getSquad',PIN,sess.matchId);
-    const summary=await call('getMatchSummary',PIN,sess.matchId);
-    if(!squad.length||!summary.match||!summary.match.matchId||summary.match.status==='Completed'){clearSession();return}
-    currentMatchId=sess.matchId;
-    currentSummary=summary;
-    showView('match');
-    renderSummary(currentSummary);
-    applyClockState_(summary.clock);
-    toast('Resumed your match in progress');
+    const raw=localStorage.getItem('pmd_session');
+    if(raw){
+      const sess=JSON.parse(raw);
+      if(sess&&sess.matchId)savedId=String(sess.matchId);
+    }
   }catch(e){clearSession()}
+
+  if(savedId){
+    try{
+      const summary=await call('getMatchSummary',PIN,savedId);
+      if(summary&&summary.match&&summary.match.matchId&&summary.match.status!=='Completed'){
+        currentMatchId=savedId;
+        currentSummary=summary;
+        showView('match');
+        renderSummary(currentSummary);
+        applyClockState_(summary.clock);
+        saveSession();
+        toast('Resumed your match in progress');
+        return;
+      }
+      clearSession();
+    }catch(e){clearSession()}
+  }
+
+  try{
+    const live=await call('getPublicSpectatorData');
+    const liveId=live&&live.live&&live.match?String(live.match.matchId||''):'';
+    if(/^TRIAL-/i.test(liveId)){
+      const summary=await call('getMatchSummary',PIN,liveId);
+      if(summary&&summary.match&&summary.match.status==='Live'){
+        currentMatchId=liveId;
+        currentSummary=summary;
+        showView('match');
+        renderSummary(currentSummary);
+        applyClockState_(summary.clock);
+        saveSession();
+        toast('Resumed live trial match');
+      }
+    }
+  }catch(e){}
 }
 function showView(v){
   ['homeView','newMatchView','playersView','addPlayerView','lineupView','squadView','matchView','pastMatchesView','pastMatchView','statsView','minutesView','subsTrackerView','ghostModeView','votingAdminView'].forEach(id=>document.getElementById(id).classList.add('hidden'));
@@ -774,6 +801,7 @@ async function startTrialMatch(){
     showView('match');
     renderSummary(currentSummary);
     applyClockState_(currentSummary.clock);
+    saveSession();
     toast('Trial match ready');
   }catch(e){
     toast(e && e.message ? e.message : 'Could not create trial match');
