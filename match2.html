@@ -747,7 +747,9 @@ async function startTrialMatch(){
     renderSummary(currentSummary);
     applyClockState_(currentSummary.clock);
     toast('Trial match ready');
-  }catch(e){}
+  }catch(e){
+    toast(e && e.message ? e.message : 'Could not create trial match');
+  }
 }
 
 async function endTrialMatch(){
