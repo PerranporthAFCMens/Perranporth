@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b5ea8">
+  <title>Reset Management PIN</title>
+  <script src="./bridge-live.js?v=20260915-3"></script>
+  <style>
+    :root{--blue:#0b5ea8;--dark:#123b5d;--bg:#f3f6f8;--line:#d8e0e6;--text:#17212b;--muted:#71808e;--green:#23811c}
+    *{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:var(--bg);color:var(--text)}.wrap{max-width:430px;margin:0 auto;padding:28px 14px}.card{background:#fff;border:1px solid #e4ebf0;border-radius:18px;padding:20px;box-shadow:0 5px 18px #0000000f}.badge{width:64px;height:64px;border-radius:50%;display:block;margin:0 auto 12px}h1{text-align:center;font-size:22px;color:var(--dark);margin:0 0 8px}.muted{text-align:center;color:var(--muted);font-size:13px;line-height:1.45}label{display:block;font-weight:700;font-size:13px;margin:15px 0 5px}input{width:100%;min-height:48px;padding:12px;border:1px solid var(--line);border-radius:12px;font-size:18px}.btn{width:100%;border:0;border-radius:12px;min-height:50px;padding:12px;margin-top:14px;font-size:16px;font-weight:700;background:var(--blue);color:#fff}.success{background:#e9f7ed;border:1px solid #ccebd4;color:#1d6b31;border-radius:12px;padding:13px;margin-top:14px}.error{background:#fdeaea;border:1px solid #f3cccc;color:#9b2020;border-radius:12px;padding:13px;margin-top:14px}.hidden{display:none!important}
+  </style>
+</head>
+<body onload="boot()"><div class="wrap"><div class="card"><img class="badge" src="./apple-touch-icon.png" alt="Perranporth AFC"><h1>Reset Management PIN</h1><div id="intro" class="muted">Checking your reset link…</div><div id="form" class="hidden"><label>New PIN</label><input id="pin1" type="password" inputmode="numeric" autocomplete="new-password"><label>Confirm new PIN</label><input id="pin2" type="password" inputmode="numeric" autocomplete="new-password"><button id="saveBtn" class="btn" onclick="savePin()">Set New PIN</button></div><div id="message"></div></div></div>
+<script>
+let TOKEN='';let INFO=null;
+function msg(text,ok){const h=document.getElementById('message');h.className=ok?'success':'error';h.textContent=text}
+async function boot(){TOKEN=new URLSearchParams(location.search).get('token')||'';if(!TOKEN)return msg('This reset link is invalid.',false);try{INFO=await pmdCall('validateManagementResetToken',TOKEN);document.getElementById('intro').textContent='Hi '+INFO.name+'. Choose a new '+(INFO.playerAccessToo?'4-digit PIN. This will update both your management and Player Portal access.':'management PIN.');document.getElementById('form').classList.remove('hidden')}catch(e){msg(e.message||'This reset link is invalid or has expired.',false)}}
+async function savePin(){const a=document.getElementById('pin1').value.trim(),b=document.getElementById('pin2').value.trim();if(a!==b)return msg('The PINs do not match.',false);const re=INFO&&INFO.playerAccessToo?/^\d{4}$/:/^\d{4,8}$/;if(!re.test(a))return msg(INFO&&INFO.playerAccessToo?'Choose a 4-digit PIN.':'Choose a 4 to 8 digit PIN.',false);const btn=document.getElementById('saveBtn');btn.disabled=true;btn.textContent='Saving…';try{await pmdCall('completeManagementPinReset',TOKEN,a);document.getElementById('form').classList.add('hidden');document.getElementById('intro').textContent='';msg('PIN updated. You can now use it for your management access.'+(INFO&&INFO.playerAccessToo?' Your Player Portal PIN has been updated too.' : ''),true)}catch(e){btn.disabled=false;btn.textContent='Set New PIN';msg(e.message||'Could not reset PIN.',false)}}
+</script></body></html>
