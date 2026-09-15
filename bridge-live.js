@@ -26,33 +26,59 @@
     else p.reject(new Error(msg.error||'Request failed'));
   });
 
-  window.pmdCall=(action,...args)=>new Promise((resolve,reject)=>{
-    const id='match_'+Date.now()+'_'+(++seq);
-    const payload=JSON.stringify({action,args});
-    const iframe=document.createElement('iframe');
-    iframe.setAttribute('aria-hidden','true');
-    iframe.tabIndex=-1;
-    iframe.style.position='fixed';
-    iframe.style.width='1px';
-    iframe.style.height='1px';
-    iframe.style.opacity='0';
-    iframe.style.pointerEvents='none';
-    iframe.style.border='0';
-    iframe.style.left='-9999px';
-    iframe.style.top='-9999px';
+  function rawCall_(action,args){
+    return new Promise((resolve,reject)=>{
+      const id='match_'+Date.now()+'_'+(++seq);
+      const payload=JSON.stringify({action,args});
+      const iframe=document.createElement('iframe');
+      iframe.setAttribute('aria-hidden','true');
+      iframe.tabIndex=-1;
+      iframe.style.position='fixed';
+      iframe.style.width='1px';
+      iframe.style.height='1px';
+      iframe.style.opacity='0';
+      iframe.style.pointerEvents='none';
+      iframe.style.border='0';
+      iframe.style.left='-9999px';
+      iframe.style.top='-9999px';
 
-    const slowActions=new Set([
-      'getMatchSummary','getFullMatchSummary','getInitData',
-      'getSeasonStats','getPlayerMinutesData','getSubsTrackerData'
-    ]);
-    const timeoutMs=slowActions.has(action)?60000:30000;
-    const timer=setTimeout(()=>{
-      cleanup_(id);
-      reject(new Error('Data connection timed out. Please try again.'));
-    },timeoutMs);
+      const slowActions=new Set([
+        'getMatchSummary','getFullMatchSummary','getInitData',
+        'getSeasonStats','getPlayerMinutesData','getSubsTrackerData',
+        'getVotingAdminData','getVotingSnapshot'
+      ]);
+      const timeoutMs=slowActions.has(action)?60000:30000;
+      const timer=setTimeout(()=>{
+        cleanup_(id);
+        reject(new Error('Data connection timed out. Please try again.'));
+      },timeoutMs);
 
-    pending.set(id,{resolve,reject,timer,iframe});
-    iframe.src=APP_URL+'?page=matchrpc&rid='+encodeURIComponent(id)+'&channel='+encodeURIComponent(CHANNEL)+'&payload='+encodeURIComponent(payload)+'&_='+Date.now();
-    document.body.appendChild(iframe);
-  });
+      pending.set(id,{resolve,reject,timer,iframe});
+      iframe.src=APP_URL+'?page=matchrpc&rid='+encodeURIComponent(id)+'&channel='+encodeURIComponent(CHANNEL)+'&payload='+encodeURIComponent(payload)+'&_='+Date.now();
+      document.body.appendChild(iframe);
+    });
+  }
+
+  window.pmdCall=async (action,...args)=>{
+    // Subs Tracker originally used two helper RPC actions that are not part of
+    // the live Match Centre whitelist. Compose the same result from existing,
+    // already-approved management RPC actions instead.
+    if(action==='openSubsWithPin'){
+      const session=await rawCall_('createAdminSession',[args[0]]);
+      const init=await rawCall_('getInitData',[session.token]);
+      const subs=await rawCall_('getSubsTrackerData',[session.token]);
+      return {session,init,subs};
+    }
+
+    if(action==='resumeSubs'){
+      const token=args[0];
+      const valid=await rawCall_('verifyPin',[token]);
+      if(!valid)throw new Error('Your management session has expired.');
+      const init=await rawCall_('getInitData',[token]);
+      const subs=await rawCall_('getSubsTrackerData',[token]);
+      return {init,subs};
+    }
+
+    return rawCall_(action,args);
+  };
 })();
