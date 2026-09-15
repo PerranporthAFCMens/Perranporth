@@ -13,3 +13,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run player-dob-onboarding.yml --repo "${{ github.repository }}"
+# trigger
