@@ -350,6 +350,8 @@ function verifyPin(pinOrToken) {
 
   const settings = getSettings_();
   if (value === String(settings['App PIN'] || '')) return true;
+  const temporaryPin = String(settings['Temporary Management PIN'] || '').trim();
+  if (temporaryPin && value === temporaryPin) return true;
 
   return isValidAdminSession_(value);
 }
@@ -362,7 +364,13 @@ function assertPin_(pinOrToken) {
 
 function createAdminSession(pin) {
   const settings = getSettings_();
-  if (String(pin || '') !== String(settings['App PIN'] || '')) {
+  const enteredPin = String(pin || '').trim();
+  const appPin = String(settings['App PIN'] || '').trim();
+  const temporaryPin = String(settings['Temporary Management PIN'] || '').trim();
+  const isMainPin = enteredPin && enteredPin === appPin;
+  const isTemporaryPin = enteredPin && temporaryPin && enteredPin === temporaryPin;
+
+  if (!isMainPin && !isTemporaryPin) {
     throw new Error('Incorrect PIN.');
   }
 
@@ -370,9 +378,12 @@ function createAdminSession(pin) {
 
   const token = Utilities.getUuid() + '-' + Utilities.getUuid();
   const expiresAt = Date.now() + (ADMIN_SESSION_HOURS * 60 * 60 * 1000);
+  const storedValue = isTemporaryPin
+    ? String(expiresAt) + '|TEMP|' + temporaryPin
+    : String(expiresAt);
 
   PropertiesService.getScriptProperties()
-    .setProperty(ADMIN_SESSION_PREFIX + token, String(expiresAt));
+    .setProperty(ADMIN_SESSION_PREFIX + token, storedValue);
 
   return { token: token, expiresAt: expiresAt };
 }
@@ -392,11 +403,22 @@ function isValidAdminSession_(token) {
   const raw = props.getProperty(key);
   if (!raw) return false;
 
-  const expiresAt = Number(raw);
+  const parts = String(raw).split('|');
+  const expiresAt = Number(parts[0]);
   if (!expiresAt || Date.now() >= expiresAt) {
     props.deleteProperty(key);
     return false;
   }
+
+  if (parts[1] === 'TEMP') {
+    const settings = getSettings_();
+    const currentTemporaryPin = String(settings['Temporary Management PIN'] || '').trim();
+    if (!currentTemporaryPin || parts[2] !== currentTemporaryPin) {
+      props.deleteProperty(key);
+      return false;
+    }
+  }
+
   return true;
 }
 
