@@ -1,0 +1,28 @@
+name: MC2 player minutes
+'on':
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/mc2-player-minutes.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Patch file
+        run: python3 scripts/patch_mc2_minutes.py
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/mc2-player-minutes.yml scripts/patch_mc2_minutes.py
+          git add match2.html
+          git commit -m "Add MC2 player minutes page"
+          git push
