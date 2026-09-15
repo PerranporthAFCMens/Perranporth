@@ -10,7 +10,8 @@
 </style><script src="./bridge-client.js"></script><script src="./button-feedback.js" defer></script></head>
 <body><div class="wrap">
 <div id="ghostLoading" class="card login hidden"><h2>👻 Ghost Mode</h2><div class="muted">Opening player view…</div></div>
-<div id="login" class="card login"><h2>Player Portal</h2><div class="muted" style="margin-bottom:12px">Select your name and enter your personal PIN.</div><select id="player"><option value="">Select player…</option></select><input id="pin" type="password" inputmode="numeric" placeholder="PIN" style="margin-top:8px"><button id="loginBtn" class="btn full" style="margin-top:9px" onclick="login()">Log in</button></div>
+<div id="login" class="card login"><h2>Player Portal</h2><div class="muted" style="margin-bottom:12px">Select your name and enter your personal PIN.</div><select id="player"><option value="">Select player…</option></select><input id="pin" type="password" inputmode="numeric" placeholder="PIN" style="margin-top:8px"><button id="loginBtn" class="btn full" style="margin-top:9px" onclick="login()">Log in</button><button class="btn secondary full" style="margin-top:8px" onclick="showFirstTime()">First time here?</button></div>
+<div id="firstTime" class="card login hidden"><h2>First-time setup</h2><div class="muted" style="margin-bottom:12px">Select your name and confirm your date of birth. You’ll then choose your own 4-digit PIN.</div><select id="setupPlayer"><option value="">Select player…</option></select><input id="setupDob" type="date" style="margin-top:8px"><button id="setupBtn" class="btn full" style="margin-top:9px" onclick="firstTimeSetup()">Continue</button><button class="btn secondary full" style="margin-top:8px" onclick="showNormalLogin()">Back to login</button></div>
 <div id="app" class="hidden">
 <div class="card hero"><img id="badge" class="badge" src="./apple-touch-icon.png"><div><h1 id="name">Player Portal</h1><div id="season" class="muted"></div></div><div class="heroActions"><button id="pinBtn" class="iconBtn" onclick="showPin()">🔢</button><button class="iconBtn" onclick="location.reload()">↻</button><button class="iconBtn" onclick="logout()">⎋</button></div></div>
 <div id="ghostBanner" class="card ghost hidden"><b>👻 Ghost Mode — read only</b><div class="muted" style="margin-top:4px">Viewing as <b id="ghostName"></b>. Nothing here can update their account.</div><a class="btn secondary ghostBack" href="./ghost.html">Back to Ghost Mode</a></div>
@@ -28,7 +29,25 @@ const saved=()=>{try{return JSON.parse(localStorage.getItem(KEY)||'null')}catch(
 async function boot(){
  const q=new URLSearchParams(location.search);GHOST=q.get('ghost')==='1';
  if(GHOST){$('login').classList.add('hidden');$('ghostLoading').classList.remove('hidden');try{const a=JSON.parse(localStorage.getItem(ADMIN)||'null'),p=localStorage.getItem('pmd_ghost_player')||'';if(!a?.token||a.expiresAt<=Date.now()||!p)throw Error('Your management session has expired.');D=await pmdCall('getGhostPlayerPortalDataDirect',a.token,p);return open(true)}catch(e){alert(e.message);location.href='./ghost.html';return}}
- try{const players=await pmdCall('getPortalPlayers');$('player').innerHTML='<option value="">Select player…</option>'+players.map(x=>`<option>${esc(x.name)}</option>`).join('')}catch(e){alert(e.message||'Could not load the player list. Please refresh and try again.');return}const s=saved();if(s?.token&&s.expiresAt>Date.now()){try{const ok=await pmdCall('verifyPlayerSession',s.token);if(ok.ok){TOKEN=s.token;return load()}}catch(e){}clear()}}
+ try{const players=await pmdCall('getPortalPlayers');const opts='<option value="">Select player…</option>'+players.map(x=>`<option>${esc(x.name)}</option>`).join('');$('player').innerHTML=opts;$('setupPlayer').innerHTML=opts}catch(e){alert(e.message||'Could not load the player list. Please refresh and try again.');return}const s=saved();if(s?.token&&s.expiresAt>Date.now()){try{const ok=await pmdCall('verifyPlayerSession',s.token);if(ok.ok){TOKEN=s.token;return load()}}catch(e){}clear()}}
+function showFirstTime(){
+ $('login').classList.add('hidden');$('firstTime').classList.remove('hidden');
+ const current=$('player').value;if(current)$('setupPlayer').value=current;
+}
+function showNormalLogin(){
+ $('firstTime').classList.add('hidden');$('login').classList.remove('hidden');
+ const current=$('setupPlayer').value;if(current)$('player').value=current;
+}
+async function firstTimeSetup(){
+ const n=$('setupPlayer').value,d=$('setupDob').value;
+ if(!n||!d)return alert('Select your name and enter your date of birth.');
+ const b=$('setupBtn');if(window.pmdSetButtonBusy)pmdSetButtonBusy(b,true,'Checking…');else{b.disabled=true;b.textContent='Checking…'}
+ try{
+  const session=await pmdCall('createPlayerSetupSession',n,d);
+  TOKEN=session.token;save(session);await load();
+ }catch(e){alert(e.message||'Could not start setup.')}
+ finally{if(!$('firstTime').classList.contains('hidden')){if(window.pmdSetButtonBusy)pmdSetButtonBusy(b,false);else{b.disabled=false;b.textContent='Continue'}}}
+}
 async function login(){const n=$('player').value,p=$('pin').value.trim();if(!n||!p)return alert('Select your name and enter your PIN.');const b=$('loginBtn');if(window.pmdSetButtonBusy)pmdSetButtonBusy(b,true,'Logging in…');else{b.disabled=true;b.textContent='Logging in…'}try{const s=await pmdCall('createPlayerSession',n,p);TOKEN=s.token;save(s);await load()}catch(e){alert(e.message||'Could not log in.')}finally{if(!$('login').classList.contains('hidden')){if(window.pmdSetButtonBusy)pmdSetButtonBusy(b,false);else{b.disabled=false;b.textContent='Log in'}}}}
 async function load(){D=await pmdCall('getPlayerPortalData',TOKEN);open(false);if(!D.pinChosen)showPin()}
 function open(ghost){GHOST=ghost;$('ghostLoading').classList.add('hidden');$('login').classList.add('hidden');$('app').classList.remove('hidden');render();if(ghost){$('ghostBanner').classList.remove('hidden');$('ghostName').textContent=D.playerName;$('pinBtn').classList.add('hidden')}}

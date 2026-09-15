@@ -252,6 +252,7 @@ function runGithubRpc_(action, args) {
     // Existing portal/public actions kept available for parity testing if needed.
     getPortalPlayers: function() { return getPortalPlayers(); },
     createPlayerSession: function(a) { return createPlayerSession(a[0], a[1]); },
+    createPlayerSetupSession: function(a) { return createPlayerSetupSession(a[0], a[1]); },
     verifyPlayerSession: function(a) { return verifyPlayerSession(a[0]); },
     logoutPlayerSession: function(a) { return logoutPlayerSession(a[0]); },
     choosePlayerPin: function(a) { return choosePlayerPin(a[0], a[1]); },
@@ -970,6 +971,8 @@ function addPlayer_(data) {
   const existing = sh.getDataRange().getValues().slice(1)
     .some(r => normaliseName_(r[0]) === normaliseName_(name));
   if (existing) throw new Error('That player already exists.');
+  ensurePlayerPinChosenColumn_();
+  ensurePlayerDobColumn_();
   sh.appendRow([
     name,
     true,
@@ -977,8 +980,12 @@ function addPlayer_(data) {
     data.shirtNo || '',
     !!data.goalkeeper,
     data.notes || '',
-    data.alias || ''
+    data.alias || '',
+    '',
+    false,
+    ''
   ]);
+  if (data.dateOfBirth) setPlayerDob_(sh, sh.getLastRow(), data.dateOfBirth);
   ensureSubsPlayerColumn_(name);
   return {
     name,
@@ -995,6 +1002,7 @@ function addPlayer_(data) {
 function getAllPlayersForAdmin(pin) {
   assertPin_(pin);
   const sh = getSS_().getSheetByName(SHEETS.PLAYERS);
+  ensurePlayerDobColumn_();
   return sh.getDataRange().getValues().slice(1)
     .map(r => ({
       name: String(r[0] || '').trim(),
@@ -1003,7 +1011,8 @@ function getAllPlayersForAdmin(pin) {
       shirtNo: r[3] || '',
       goalkeeper: bool_(r[4]),
       notes: String(r[5] || ''),
-      alias: String(r[6] || '')
+      alias: String(r[6] || ''),
+      dateOfBirth: formatPlayerDob_(r[9])
     }))
     .filter(p => p.name)
     .sort((a,b) => {
@@ -1050,6 +1059,7 @@ function updatePlayer_(originalName, data) {
     data.notes || '',
     data.alias || ''
   ]]);
+  setPlayerDob_(sh, rowNumber, data.dateOfBirth || '');
 
   if (typeof ensureSubsPlayerColumn_ === 'function') {
     ensureSubsPlayerColumn_(newName);
@@ -2287,9 +2297,18 @@ const PLAYER_SESSION_HOURS = 24 * 30;
 const PLAYER_SESSION_PREFIX = 'PLAYER_SESSION_';
 
 function getPortalPlayers() {
-  return getPlayers_()
-    .filter(p => p.active !== false)
-    .map(p => ({ name: p.name, alias: p.alias || '' }));
+  const sh = getSS_().getSheetByName(SHEETS.PLAYERS);
+  if (!sh) throw new Error('Players sheet is missing.');
+  const chosenCol = ensurePlayerPinChosenColumn_();
+  const rows = sh.getDataRange().getValues().slice(1);
+  return rows
+    .filter(r => String(r[0] || '').trim() && bool_(r[1]))
+    .map(r => ({
+      name: String(r[0] || '').trim(),
+      alias: String(r[6] || ''),
+      pinChosen: bool_(r[chosenCol - 1])
+    }))
+    .sort((a,b) => a.name.localeCompare(b.name));
 }
 
 
@@ -2307,6 +2326,85 @@ function ensurePlayerPinChosenColumn_() {
     sh.getRange(1, col).setValue('PIN Chosen');
   }
   return col;
+}
+
+function ensurePlayerDobColumn_() {
+  const sh = getSS_().getSheetByName(SHEETS.PLAYERS);
+  if (!sh) throw new Error('Players sheet is missing.');
+  const lastCol = Math.max(sh.getLastColumn(), 10);
+  const headers = sh.getRange(1, 1, 1, lastCol).getValues()[0]
+    .map(v => String(v || '').trim());
+  let col = headers.findIndex(h => h === 'Date of Birth') + 1;
+  if (!col) {
+    col = 10;
+    sh.getRange(1, col).setValue('Date of Birth');
+    sh.getRange(2, col, Math.max(sh.getMaxRows() - 1, 1), 1).setNumberFormat('dd/mm/yyyy');
+  }
+  return col;
+}
+
+function normalisePlayerDob_(value) {
+  if (value instanceof Date && !isNaN(value.getTime())) {
+    return Utilities.formatDate(value, 'Europe/London', 'yyyy-MM-dd');
+  }
+  const s = String(value || '').trim();
+  if (!s) return '';
+  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) return m[1] + '-' + m[2] + '-' + m[3];
+  m = s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/);
+  if (m) return m[3] + '-' + String(m[2]).padStart(2,'0') + '-' + String(m[1]).padStart(2,'0');
+  return '';
+}
+
+function formatPlayerDob_(value) {
+  return normalisePlayerDob_(value);
+}
+
+function setPlayerDob_(sh, row, value) {
+  const col = ensurePlayerDobColumn_();
+  const dob = normalisePlayerDob_(value);
+  if (!dob) {
+    sh.getRange(row, col).clearContent();
+    return;
+  }
+  const d = new Date(dob + 'T12:00:00');
+  sh.getRange(row, col).setValue(d).setNumberFormat('dd/mm/yyyy');
+}
+
+function createPlayerSetupSession(playerName, dateOfBirth) {
+  playerName = String(playerName || '').trim();
+  const suppliedDob = normalisePlayerDob_(dateOfBirth);
+  if (!playerName || !suppliedDob) throw new Error('Select your name and enter your date of birth.');
+
+  const sh = getSS_().getSheetByName(SHEETS.PLAYERS);
+  if (!sh) throw new Error('Players sheet is missing.');
+  const chosenCol = ensurePlayerPinChosenColumn_();
+  const dobCol = ensurePlayerDobColumn_();
+  const rows = sh.getDataRange().getValues().slice(1);
+  const idx = rows.findIndex(r => String(r[0] || '').trim() === playerName && bool_(r[1]));
+  if (idx < 0) throw new Error('Player not found.');
+
+  const row = rows[idx];
+  if (bool_(row[chosenCol - 1])) {
+    throw new Error('You already have a PIN. Use the normal login above, or ask management to reset it.');
+  }
+
+  const savedDob = normalisePlayerDob_(row[dobCol - 1]);
+  if (!savedDob) {
+    throw new Error('Your date of birth has not been added yet. Ask management to update your player record.');
+  }
+  if (savedDob !== suppliedDob) {
+    throw new Error('That date of birth does not match our records.');
+  }
+
+  const token = Utilities.getUuid() + Utilities.getUuid();
+  const expiresAt = Date.now() + PLAYER_SESSION_HOURS * 60 * 60 * 1000;
+  PropertiesService.getScriptProperties().setProperty(
+    PLAYER_SESSION_PREFIX + token,
+    JSON.stringify({ playerName, expiresAt })
+  );
+
+  return { token, playerName, expiresAt, pinChosen: false, mustChoosePin: true };
 }
 
 function createPlayerSession(playerName, pin) {

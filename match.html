@@ -368,12 +368,14 @@
         <label style="display:flex;gap:9px;align-items:center"><input id="epGK" type="checkbox" style="width:auto;min-height:0"> Goalkeeper</label><br>
         <label style="display:flex;gap:9px;align-items:center"><input id="epActive" type="checkbox" style="width:auto;min-height:0"> Active player</label><br>
         <input id="epAlias" placeholder="Voting alias (optional)"><br><br>
+        <label class="muted" for="epDob">Date of birth</label>
+        <input id="epDob" type="date"><br><br>
         <textarea id="epNotes" placeholder="Notes"></textarea>
         <button class="btn green full" style="margin-top:10px" onclick="savePlayerEdit()">Save Changes</button>
       </div>
     </div>
 
-    <div id="addPlayerView" class="hidden"><div class="card"><h2>Add player</h2><input id="apName" placeholder="Player name"><br><br><div class="grid2"><select id="apPos"><option value="">Default position</option><option>GK</option><option>RB</option><option>RCB</option><option>CB</option><option>LCB</option><option>LB</option><option>RWB</option><option>LWB</option><option>DM</option><option>CM</option><option>AM</option><option>RW</option><option>LW</option><option>ST</option><option>Other</option></select><input id="apShirt" type="number" placeholder="Shirt no."></div><br><label><input id="apGK" type="checkbox" style="width:auto;min-height:0"> Goalkeeper</label><br><br><input id="apAlias" placeholder="Voting alias (optional)"><br><br><textarea id="apNotes" placeholder="Notes"></textarea><div class="grid2" style="margin-top:10px"><button class="btn green" onclick="addPlayer()">Save Player</button><button class="btn secondary" onclick="showPlayers()">Cancel</button></div></div></div>
+    <div id="addPlayerView" class="hidden"><div class="card"><h2>Add player</h2><input id="apName" placeholder="Player name"><br><br><div class="grid2"><select id="apPos"><option value="">Default position</option><option>GK</option><option>RB</option><option>RCB</option><option>CB</option><option>LCB</option><option>LB</option><option>RWB</option><option>LWB</option><option>DM</option><option>CM</option><option>AM</option><option>RW</option><option>LW</option><option>ST</option><option>Other</option></select><input id="apShirt" type="number" placeholder="Shirt no."></div><br><label><input id="apGK" type="checkbox" style="width:auto;min-height:0"> Goalkeeper</label><br><br><input id="apAlias" placeholder="Voting alias (optional)"><br><br><label class="muted" for="apDob">Date of birth</label><input id="apDob" type="date"><br><br><textarea id="apNotes" placeholder="Notes"></textarea><div class="grid2" style="margin-top:10px"><button class="btn green" onclick="addPlayer()">Save Player</button><button class="btn secondary" onclick="showPlayers()">Cancel</button></div></div></div>
 
     <div id="matchView" class="hidden">
       <div class="card">
@@ -721,6 +723,7 @@ function editPlayer(name){
   document.getElementById('epGK').checked=!!p.goalkeeper;
   document.getElementById('epActive').checked=!!p.active;
   document.getElementById('epAlias').value=p.alias||'';
+  document.getElementById('epDob').value=p.dateOfBirth||'';
   document.getElementById('epNotes').value=p.notes||'';
   document.getElementById('editPlayerCard').classList.remove('hidden');
   document.getElementById('editPlayerCard').scrollIntoView({behavior:'smooth',block:'start'});
@@ -742,6 +745,7 @@ async function savePlayerEdit(){
     goalkeeper:document.getElementById('epGK').checked,
     active:document.getElementById('epActive').checked,
     alias:val('epAlias').trim(),
+    dateOfBirth:val('epDob'),
     notes:val('epNotes')
   };
 
@@ -756,8 +760,8 @@ async function savePlayerEdit(){
   toast('Player updated');
 }
 
-function showAddPlayer(){['apName','apShirt','apNotes','apAlias'].forEach(id=>document.getElementById(id).value='');document.getElementById('apPos').value='';document.getElementById('apGK').checked=false;showView('addPlayer')}
-async function addPlayer(){const data={name:val('apName').trim(),position:val('apPos'),shirtNo:val('apShirt'),goalkeeper:document.getElementById('apGK').checked,notes:val('apNotes'),alias:val('apAlias')};if(!data.name)return toast('Enter a player name');const p=await call('addPlayer',PIN,data);DATA.allPlayers=await call('getAllPlayersForAdmin',PIN);DATA.players=DATA.allPlayers.filter(x=>x.active);populatePlayers();toast(p.name+' added');showPlayers()}
+function showAddPlayer(){['apName','apShirt','apNotes','apAlias','apDob'].forEach(id=>document.getElementById(id).value='');document.getElementById('apPos').value='';document.getElementById('apGK').checked=false;showView('addPlayer')}
+async function addPlayer(){const data={name:val('apName').trim(),position:val('apPos'),shirtNo:val('apShirt'),goalkeeper:document.getElementById('apGK').checked,notes:val('apNotes'),alias:val('apAlias'),dateOfBirth:val('apDob')};if(!data.name)return toast('Enter a player name');const p=await call('addPlayer',PIN,data);DATA.allPlayers=await call('getAllPlayersForAdmin',PIN);DATA.players=DATA.allPlayers.filter(x=>x.active);populatePlayers();toast(p.name+' added');showPlayers()}
 
 async function startTrialMatch(){
   if(!confirm('Start a temporary trial match? Any previous trial match will be deleted first.')) return;
