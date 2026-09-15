@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#0b67d1">
   <style>
-    :root{--blue:#0b67d1;--ink:#17212b;--muted:#6d7b88;--bg:#eef3f8;--line:#dbe4ec;--green:#23811c}
+    :root{--blue:#0b67d1;--ink:#17212b;--muted:#6d7b88;--bg:#eef3f8;--line:#dbe4ec}
     *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
     body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--ink)}
     .wrap{max-width:900px;margin:0 auto;padding:18px 12px 36px}
@@ -58,19 +58,22 @@ let TOKEN='',DATA=null;
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.style.display='block';setTimeout(()=>t.style.display='none',2300)}
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function val(id){return document.getElementById(id).value}
+function tokenFromSession(x){return (x&&typeof x==='object'&&x.token)?String(x.token):String(x||'')}
 async function boot(){
   let saved='';try{saved=localStorage.getItem('pmd_admin_auth')||''}catch(e){}
-  if(saved){
+  if(saved&&saved!=='[object Object]'){
     try{if(await pmdCall('verifyPin',saved)){TOKEN=saved;await load();return}}catch(e){}
-    try{localStorage.removeItem('pmd_admin_auth')}catch(e){}
   }
+  try{localStorage.removeItem('pmd_admin_auth')}catch(e){}
 }
 async function login(){
   const pin=val('pin').trim();if(!pin)return toast('Enter PIN');
   const btn=document.getElementById('loginBtn');btn.disabled=true;btn.textContent='Opening…';
   try{
     if(!await pmdCall('verifyPin',pin)){toast('Incorrect PIN');return}
-    TOKEN=await pmdCall('createAdminSession',pin);
+    const session=await pmdCall('createAdminSession',pin);
+    TOKEN=tokenFromSession(session);
+    if(!TOKEN)throw new Error('Could not create admin session');
     try{localStorage.setItem('pmd_admin_auth',TOKEN)}catch(e){}
     await load();
   }catch(e){toast(e.message||'Could not open Player Minutes')}
