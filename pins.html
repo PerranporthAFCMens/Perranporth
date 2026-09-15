@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Player PINs — Perranporth AFC</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b67d1">
+  <style>
+    :root{--blue:#0b67d1;--ink:#17212b;--muted:#6d7b88;--bg:#eef3f8;--line:#dbe4ec;--green:#23811c;--danger:#c62828}
+    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+    body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--ink)}
+    .wrap{max-width:760px;margin:0 auto;padding:18px 12px 36px}
+    .hero,.card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:18px;margin-bottom:12px;box-shadow:0 4px 14px #1e37500d}
+    .hero{display:flex;align-items:center;gap:12px}.badge{width:58px;height:58px;border-radius:50%;object-fit:contain}.heroText{flex:1}
+    h1{font-size:23px;margin:0;color:#123b5d}h2{font-size:18px;margin:0 0 12px}.muted{color:var(--muted);font-size:13px}.hidden{display:none!important}
+    .btn{border:0;border-radius:12px;min-height:46px;padding:11px 14px;background:var(--blue);color:#fff;font-size:15px;font-weight:800;cursor:pointer;text-decoration:none;text-align:center;display:inline-flex;align-items:center;justify-content:center}.btn.secondary{background:#e7edf2;color:#263746}.btn.green{background:var(--green)}.btn.full{width:100%}.btn:disabled{opacity:.55}
+    input,select{width:100%;min-height:48px;border:1px solid var(--line);border-radius:12px;padding:11px 12px;background:#fff;font-size:16px}
+    .row{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center}.status{margin:10px 0;padding:10px 12px;border-radius:12px;background:#f5f8fa;border:1px solid var(--line);font-size:13px}.status b{color:#123b5d}
+    .note{margin-top:12px;padding:12px;border-radius:12px;background:#fff7df;border:1px solid #f2df9b;font-size:13px;line-height:1.4}
+    .toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:#17212b;color:#fff;padding:10px 15px;border-radius:20px;display:none;z-index:99;max-width:90%;text-align:center}
+    @media(max-width:620px){.wrap{padding:10px 8px 24px}.hero,.card{border-radius:14px;padding:13px}.badge{width:48px;height:48px}h1{font-size:20px}.row{grid-template-columns:1fr}}
+  </style>
+  <script src="./bridge-live.js"></script>
+  <script src="./button-feedback.js" defer></script>
+</head>
+<body>
+<div class="wrap">
+  <div class="hero">
+    <img class="badge" src="https://www.perranporthafc.co.uk/wp-content/themes/sharkfin-1-4/images/perranporth-afc-large.jpg" alt="Perranporth AFC">
+    <div class="heroText"><h1>Player PINs</h1><div class="muted">Reset Player Portal access</div></div>
+    <a class="btn secondary" href="./" target="_top">Home</a>
+  </div>
+
+  <div id="loginCard" class="card">
+    <h2>Management access</h2>
+    <input id="pin" type="password" inputmode="numeric" placeholder="Enter management PIN">
+    <button id="loginBtn" class="btn full" style="margin-top:9px" onclick="login()">Open Player PINs</button>
+  </div>
+
+  <div id="app" class="hidden">
+    <div class="card">
+      <h2>Reset a player's PIN</h2>
+      <div class="muted" style="margin-bottom:10px">Choose a player and give them a temporary 4-digit PIN. Their existing Player Portal sessions will be logged out immediately.</div>
+      <select id="player" onchange="updateStatus()"></select>
+      <div id="playerStatus" class="status"></div>
+      <div class="row">
+        <input id="tempPin" type="text" inputmode="numeric" maxlength="4" pattern="[0-9]*" placeholder="Temporary 4-digit PIN">
+        <button class="btn secondary" onclick="generatePin()">Generate</button>
+      </div>
+      <button id="resetBtn" class="btn green full" style="margin-top:10px" onclick="resetPin()">Reset PIN</button>
+      <div class="note"><b>What happens next:</b> the player logs in with the temporary PIN, then the portal asks them to choose their own new 4-digit PIN.</div>
+    </div>
+  </div>
+</div>
+<div id="toast" class="toast"></div>
+<script>
+let TOKEN='',PLAYERS=[];
+function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.style.display='block';setTimeout(()=>t.style.display='none',2600)}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function tokenFromSession_(session){return typeof session==='string'?session:String(session&&session.token||'')}
+async function boot(){
+  let saved='';try{saved=localStorage.getItem('pmd_admin_auth')||''}catch(e){}
+  if(saved){
+    try{if(await pmdCall('verifyPin',saved)){TOKEN=saved;await load();return}}catch(e){}
+    try{localStorage.removeItem('pmd_admin_auth')}catch(e){}
+  }
+}
+async function login(){
+  const pin=document.getElementById('pin').value.trim();if(!pin)return toast('Enter management PIN');
+  const btn=document.getElementById('loginBtn');btn.disabled=true;btn.textContent='Opening…';
+  try{
+    if(!await pmdCall('verifyPin',pin)){toast('Incorrect PIN');return}
+    const session=await pmdCall('createAdminSession',pin);TOKEN=tokenFromSession_(session);
+    if(!TOKEN)throw new Error('Could not create management session.');
+    try{localStorage.setItem('pmd_admin_auth',TOKEN)}catch(e){}
+    await load();
+  }catch(e){toast(e.message||'Could not open Player PINs')}
+  finally{btn.disabled=false;btn.textContent='Open Player PINs'}
+}
+async function load(){
+  PLAYERS=await pmdCall('getPlayerPinAdminData',TOKEN);
+  document.getElementById('loginCard').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+  const sel=document.getElementById('player');
+  sel.innerHTML=PLAYERS.map(p=>`<option value="${esc(p.name)}">${esc(p.name)}${p.active?'':' — inactive'}</option>`).join('');
+  updateStatus();
+}
+function updateStatus(){
+  const name=document.getElementById('player').value;
+  const p=PLAYERS.find(x=>x.name===name);
+  if(!p){document.getElementById('playerStatus').innerHTML='';return}
+  document.getElementById('playerStatus').innerHTML=p.pinChosen?'<b>Current status:</b> Player has chosen their own PIN.':'<b>Current status:</b> Temporary PIN / new PIN choice still required.';
+}
+function generatePin(){
+  const n=Math.floor(1000+Math.random()*9000);
+  document.getElementById('tempPin').value=String(n);
+}
+async function resetPin(){
+  const player=document.getElementById('player').value;
+  const pin=document.getElementById('tempPin').value.trim();
+  if(!/^\d{4}$/.test(pin))return toast('Enter a 4-digit temporary PIN');
+  if(!confirm(`Reset ${player}'s Player Portal PIN?`))return;
+  const btn=document.getElementById('resetBtn');btn.disabled=true;btn.textContent='Resetting…';
+  try{
+    await pmdCall('resetPlayerPin',TOKEN,player,pin);
+    const p=PLAYERS.find(x=>x.name===player);if(p)p.pinChosen=false;
+    updateStatus();
+    toast(`${player}'s PIN has been reset`);
+  }catch(e){toast(e.message||'Could not reset PIN')}
+  finally{btn.disabled=false;btn.textContent='Reset PIN'}
+}
+window.addEventListener('load',boot);
+</script>
+</body>
+</html>
