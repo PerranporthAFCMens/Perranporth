@@ -328,6 +328,8 @@
         </div>
 
         <button class="btn green full" style="margin-top:10px" onclick="saveLineupBuilder()">Save Lineup</button>
+        <button class="btn full" style="margin-top:7px" onclick="setAsStartingLineup()">✅ Set as Starting Lineup</button>
+        <div class="muted" style="margin-top:6px;text-align:center">Can be used before or after kick-off. This sets the players currently on the pitch as the starting XI.</div>
         <button class="btn secondary full" style="margin-top:7px" onclick="editSelectedSquad()">List Squad View</button>
       </div>
     </div>
@@ -1176,6 +1178,35 @@ function clearLineup(){
   lineupState=[];
   renderLineupBuilder();
   toast('Lineup cleared');
+}
+
+async function setAsStartingLineup(){
+  if(!currentMatchId)return toast('Select a match');
+  const pitchPlayers=lineupState.filter(p=>p.area==='Pitch'&&p.player);
+  if(!pitchPlayers.length)return toast('Put the starting players on the pitch first');
+  if(pitchPlayers.length>11)return toast('Starting lineup cannot have more than 11 players');
+
+  const payload={
+    formation:val('lineupFormation')||'Custom',
+    positions:lineupState.map((p,i)=>({
+      player:p.player,area:p.area,x:p.x||0,y:p.y||0,
+      order:p.area==='Pitch'&&Number.isInteger(p.slot)?p.slot+1:(p.order||i+1)
+    }))
+  };
+
+  if(!confirm(`Set ${pitchPlayers.length} player${pitchPlayers.length===1?'':'s'} on the pitch as the starting lineup?`))return;
+
+  try{
+    await call('setStartingLineup',PIN,currentMatchId,payload);
+    DATA.matches=await call('getMatches',PIN,true);
+    populateMatches();
+    document.getElementById('matchSelect').value=currentMatchId;
+    updateSelectedMatchInfo();
+    await loadLineupBuilder();
+    toast('Starting lineup set');
+  }catch(err){
+    toast(err&&err.message?err.message:String(err||'Could not set starting lineup'));
+  }
 }
 
 async function saveLineupBuilder(){
