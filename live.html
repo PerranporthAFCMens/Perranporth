@@ -6,24 +6,25 @@
   <title>Perranporth AFC Live</title>
   <meta name="theme-color" content="#0b5ea8">
   <style>
-    :root{--blue:#0b5ea8;--dark:#123b5d;--pale:#eaf4fb;--bg:#f3f6f8;--card:#fff;--line:#dce5eb;--text:#17212b;--muted:#70808d;--green:#1f7a36;--red:#c62828;--amber:#996b00}
+    :root{--blue:#0b5ea8;--blue2:#1578c8;--navy:#0a2942;--sky:#dff2ff;--green:#138a43;--green2:#dff6e8;--red:#d62828;--red2:#ffe4e4;--amber:#c88200;--amber2:#fff1c9;--purple:#6d42c1;--purple2:#efe7ff;--bg:#eaf4fb;--card:#fff;--line:#d8e7f1;--text:#12202c;--muted:#678091}
     *{box-sizing:border-box}
-    body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text);-webkit-text-size-adjust:100%}
-    .app{max-width:760px;margin:0 auto;padding:max(10px,env(safe-area-inset-top)) 10px max(28px,env(safe-area-inset-bottom))}
-    .card{background:var(--card);border:1px solid #e8eef2;border-radius:18px;padding:16px;margin-bottom:10px;box-shadow:0 1px 5px #0000000c}
-    .top{display:flex;align-items:center;gap:12px}.badge{width:54px;height:54px;border-radius:50%;object-fit:cover;background:#fff}.club{font-size:21px;font-weight:900;color:var(--dark)}.small{font-size:12px;color:var(--muted)}
-    .livepill{margin-left:auto;border-radius:999px;padding:7px 11px;font-size:12px;font-weight:900;background:#e8f5e9;color:#155b29}.livepill.ht{background:#fff6d9;color:#755400}.livepill.ft{background:#e8edf1;color:#41515e}
-    .competition{text-align:center;font-size:13px;font-weight:800;color:var(--muted);margin-bottom:13px;text-transform:uppercase;letter-spacing:.4px}
-    .scoregrid{display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center;text-align:center}.team{font-size:17px;font-weight:900}.score{font-size:42px;font-weight:900;color:var(--dark);white-space:nowrap}.minute{text-align:center;margin-top:8px;font-size:14px;font-weight:800;color:var(--green)}
-    h2{font-size:17px;margin:0 0 12px;color:var(--dark)}
-    .scorers{display:grid;grid-template-columns:1fr 1fr;gap:10px}.scorerCol{min-width:0}.scorer{font-size:13px;padding:5px 0;border-bottom:1px solid #eef2f5}.scorer:last-child{border-bottom:0}.right{text-align:right}
-    .tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}.tab{border:0;border-radius:12px;min-height:44px;font-weight:800;background:#e7edf2;color:#263746}.tab.active{background:var(--blue);color:white}
-    .lineup{display:grid;grid-template-columns:1fr 1fr;gap:10px}.lineupBox{border:1px solid var(--line);border-radius:14px;padding:12px}.lineupTitle{font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:900;margin-bottom:7px}.player{padding:6px 0;border-bottom:1px solid #eef2f5;font-size:14px;font-weight:700}.player:last-child{border-bottom:0}.player.off{text-decoration:line-through;color:#89959e}.tag{font-size:10px;border-radius:999px;padding:3px 6px;margin-left:5px;background:var(--pale);color:var(--dark);font-weight:900}.tag.on{background:#e8f5e9;color:#155b29}.tag.off{background:#fdeaea;color:#8a1e1e}
-    .event{display:grid;grid-template-columns:46px 28px 1fr;gap:8px;align-items:start;padding:10px 0;border-bottom:1px solid #edf2f5}.event:last-child{border-bottom:0}.eventMin{font-weight:900;color:var(--dark)}.eventIcon{font-size:18px;text-align:center}.eventText{font-size:14px;line-height:1.35}.eventText b{display:block}.eventSub{font-size:12px;color:var(--muted);margin-top:2px}
+    body{margin:0;font-family:Arial,Helvetica,sans-serif;background:linear-gradient(180deg,#dff2ff 0,#f5f9fc 240px,#eef4f8 100%);color:var(--text);-webkit-text-size-adjust:100%}
+    .app{max-width:780px;margin:0 auto;padding:max(10px,env(safe-area-inset-top)) 10px max(28px,env(safe-area-inset-bottom))}
+    .card{background:var(--card);border:1px solid #e0ebf2;border-radius:20px;padding:16px;margin-bottom:12px;box-shadow:0 7px 22px #0b5ea812}
+    .top{display:flex;align-items:center;gap:12px;background:linear-gradient(135deg,var(--navy),var(--blue));color:#fff;border:0}.badge{width:58px;height:58px;border-radius:50%;object-fit:cover;background:#fff;border:3px solid #fff}.club{font-size:22px;font-weight:900;color:#fff}.small{font-size:12px;color:var(--muted)}.top .small{color:#d9ecfa}
+    .livepill{margin-left:auto;border-radius:999px;padding:8px 12px;font-size:12px;font-weight:900;background:#dff6e8;color:#12652f;border:2px solid #fff}.livepill.ht{background:var(--amber2);color:#805700}.livepill.ft{background:#edf2f5;color:#42515c}.livepill.none{background:#edf2f5;color:#526572}
+    .scoreCard{overflow:hidden;padding:0}.scoreHead{padding:12px 16px;text-align:center;background:linear-gradient(90deg,#eaf5fd,#f7fbfe);border-bottom:1px solid var(--line)}.competition{font-size:13px;font-weight:900;color:var(--blue);text-transform:uppercase;letter-spacing:.5px}
+    .scoreBody{padding:20px 16px 16px;background:linear-gradient(180deg,#fff,#f7fbfe)}.scoregrid{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:10px;align-items:center;text-align:center}.team{font-size:18px;font-weight:900;color:var(--navy)}.score{font-size:48px;font-weight:900;color:var(--navy);white-space:nowrap;background:#edf7fd;padding:5px 14px;border-radius:16px;border:1px solid #cfe6f5}.minute{text-align:center;margin-top:10px;font-size:15px;font-weight:900;color:var(--green)}
+    h2{font-size:18px;margin:0 0 12px;color:var(--navy)}
+    .scorers{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}.scorerCol{min-width:0}.scorer{font-size:13px;padding:6px 0;border-bottom:1px solid #e8f0f5}.scorer:last-child{border-bottom:0}.right{text-align:right}
+    .tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;background:#edf4f8;padding:5px;border-radius:14px}.tab{border:0;border-radius:10px;min-height:44px;font-weight:900;background:transparent;color:#466071}.tab.active{background:linear-gradient(135deg,var(--blue),var(--blue2));color:white;box-shadow:0 3px 10px #0b5ea82b}
+    .lineup{display:grid;grid-template-columns:1fr 1fr;gap:10px}.lineupBox{border-radius:16px;padding:12px}.lineupBox.pitch{background:linear-gradient(180deg,#e8f8ee,#f8fffa);border:1px solid #bfe5cc}.lineupBox.bench{background:linear-gradient(180deg,#eef5fb,#fbfdff);border:1px solid #cddfea}.lineupTitle{font-size:12px;text-transform:uppercase;letter-spacing:.5px;font-weight:900;margin-bottom:8px}.pitch .lineupTitle{color:#1b6c38}.bench .lineupTitle{color:#315a78}
+    .player{padding:8px 9px;border-bottom:1px solid #e4edf2;font-size:14px;font-weight:800;border-radius:9px}.player:last-child{border-bottom:0}.player.onfield{background:#fff;margin-bottom:5px;border:1px solid #d9eedf}.player.benched{background:#fff;margin-bottom:5px;border:1px solid #dde8ef}.tag{font-size:10px;border-radius:999px;padding:4px 7px;margin-left:6px;font-weight:900;white-space:nowrap}.tag.on{background:var(--green2);color:#12652f}.tag.off{background:var(--red2);color:#9e2323}.tag.return{background:var(--purple2);color:#56329d}
+    .event{display:grid;grid-template-columns:48px 30px 1fr;gap:8px;align-items:start;padding:11px 9px;border-bottom:1px solid #e7eef3;border-radius:10px}.event:nth-child(odd){background:#f8fbfd}.eventMin{font-weight:900;color:var(--blue)}.eventIcon{font-size:19px;text-align:center}.eventText{font-size:14px;line-height:1.35}.eventText b{display:block}.eventSub{font-size:12px;color:var(--muted);margin-top:2px}
     .updated{text-align:center;font-size:11px;color:var(--muted);padding:4px 0 1px}.empty{text-align:center;padding:30px 12px;color:var(--muted)}
-    .demo{background:#fff8dd;border-color:#ebd487}.demoTitle{font-weight:900;color:#6d5200;margin-bottom:5px}.demoBtns{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:10px}.demoBtn{border:0;border-radius:10px;min-height:42px;padding:8px;font-size:12px;font-weight:800;background:#fff;border:1px solid #d9c77a;color:#5f4c00}
-    .hidden{display:none!important}
-    @media(max-width:520px){.app{padding:7px}.card{border-radius:14px;padding:13px}.badge{width:46px;height:46px}.club{font-size:18px}.score{font-size:36px}.team{font-size:15px}.lineup{grid-template-columns:1fr}.scorers{gap:6px}.demoBtns{grid-template-columns:1fr 1fr}}
+    .demo{background:linear-gradient(135deg,#fff5cf,#fffaf0);border-color:#ead182}.demoTitle{font-weight:900;color:#715300;margin-bottom:5px}.demoBtns{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:10px}.demoBtn{border:0;border-radius:11px;min-height:44px;padding:8px;font-size:12px;font-weight:900;background:#fff;border:1px solid #dcc46f;color:#5f4c00;box-shadow:0 2px 7px #7b5f0014}.demoBtn.interchange{background:var(--purple2);border-color:#cdbcf5;color:#553293}
+    .legend{margin-top:10px;padding:10px 11px;border-radius:12px;background:#f7fafc;color:#5e7484;font-size:12px;line-height:1.45}.hidden{display:none!important}
+    @media(max-width:520px){.app{padding:7px}.card{border-radius:16px;padding:13px}.top{padding:13px}.badge{width:48px;height:48px}.club{font-size:18px}.score{font-size:38px;padding:5px 10px}.team{font-size:15px}.lineup{grid-template-columns:1fr}.scorers{gap:7px}.demoBtns{grid-template-columns:1fr 1fr}.scoreBody{padding:17px 11px 14px}}
   </style>
 </head>
 <body>
@@ -34,17 +35,19 @@
       <div id="statusPill" class="livepill">LIVE</div>
     </section>
 
-    <section class="card">
-      <div id="competition" class="competition">Intermediate Cup • Round 1</div>
-      <div class="scoregrid">
-        <div id="homeTeam" class="team">Perranporth</div>
-        <div id="score" class="score">2–1</div>
-        <div id="awayTeam" class="team">TEST FC</div>
-      </div>
-      <div id="minute" class="minute">67'</div>
-      <div class="scorers" style="margin-top:13px">
-        <div id="homeScorers" class="scorerCol"></div>
-        <div id="awayScorers" class="scorerCol right"></div>
+    <section class="card scoreCard">
+      <div class="scoreHead"><div id="competition" class="competition">Intermediate Cup • Round 1</div></div>
+      <div class="scoreBody">
+        <div class="scoregrid">
+          <div id="homeTeam" class="team">Perranporth</div>
+          <div id="score" class="score">2–1</div>
+          <div id="awayTeam" class="team">TEST FC</div>
+        </div>
+        <div id="minute" class="minute">67'</div>
+        <div class="scorers">
+          <div id="homeScorers" class="scorerCol"></div>
+          <div id="awayScorers" class="scorerCol right"></div>
+        </div>
       </div>
     </section>
 
@@ -56,9 +59,10 @@
 
       <div id="lineupPanel">
         <div class="lineup">
-          <div class="lineupBox"><div class="lineupTitle">On the pitch</div><div id="onPitch"></div></div>
-          <div class="lineupBox"><div class="lineupTitle">Bench / used subs</div><div id="bench"></div></div>
+          <div class="lineupBox pitch"><div class="lineupTitle">🟢 On the pitch</div><div id="onPitch"></div></div>
+          <div class="lineupBox bench"><div class="lineupTitle">🔵 Off the pitch / available</div><div id="bench"></div></div>
         </div>
+        <div class="legend">Rolling interchanges are supported: a player who goes off stays available and can return to the pitch later.</div>
       </div>
 
       <div id="updatesPanel" class="hidden"><div id="events"></div></div>
@@ -70,7 +74,8 @@
       <div class="demoBtns">
         <button class="demoBtn" type="button" data-demo="goal">⚽ Perran goal</button>
         <button class="demoBtn" type="button" data-demo="oppgoal">⚽ Opp goal</button>
-        <button class="demoBtn" type="button" data-demo="sub">🔄 Make sub</button>
+        <button class="demoBtn interchange" type="button" data-demo="interchange">🔄 Interchange</button>
+        <button class="demoBtn interchange" type="button" data-demo="return">↩️ Bring player back</button>
         <button class="demoBtn" type="button" data-demo="half">⏸ Half time</button>
         <button class="demoBtn" type="button" data-demo="second">▶ Second half</button>
         <button class="demoBtn" type="button" data-demo="full">🏁 Full time</button>
@@ -84,12 +89,12 @@
   const demo = new URLSearchParams(location.search).get('demo') === '1';
   const state = {
     status:'LIVE', minute:67, home:'Perranporth', away:'TEST FC', competition:'Intermediate Cup • Round 1', homeScore:2, awayScore:1,
-    starters:['Leo Osborne','Jake Allen','Dan Gilbert','Jack Smith','George Parkes','Luke Watson-Read','Kierren Faulkner','Rian Faulkner','Alex Taylor','Tom Goodman','Fin Stribley'],
-    bench:['Ben Lawrence','Dan Ware','Gav Counter','Tyreece Gallaway'],
-    off:['Fin Stribley'], on:['Ben Lawrence'],
+    allPlayers:['Leo Osborne','Jake Allen','Dan Gilbert','Jack Smith','George Parkes','Luke Watson-Read','Kierren Faulkner','Rian Faulkner','Alex Taylor','Tom Goodman','Fin Stribley','Ben Lawrence','Dan Ware','Gav Counter','Tyreece Gallaway'],
+    onPitch:['Leo Osborne','Jake Allen','Dan Gilbert','Jack Smith','George Parkes','Luke Watson-Read','Kierren Faulkner','Rian Faulkner','Alex Taylor','Tom Goodman','Ben Lawrence'],
+    everReturned:[],
     homeGoals:[{m:18,p:'Alex Taylor'},{m:54,p:'Tom Goodman'}], awayGoals:[{m:61,p:'TEST FC'}],
     events:[
-      {m:64,i:'🔄',t:'Substitution',s:'Ben Lawrence on • Fin Stribley off'},
+      {m:64,i:'🔄',t:'Interchange',s:'Ben Lawrence on • Fin Stribley off'},
       {m:61,i:'⚽',t:'Goal — TEST FC',s:'Perranporth 2–1 TEST FC'},
       {m:58,i:'🟨',t:'Dan Gilbert booked',s:''},
       {m:54,i:'⚽',t:'GOAL! Tom Goodman',s:'Perranporth 2–0 TEST FC'},
@@ -110,11 +115,9 @@
     $('homeScorers').innerHTML=state.homeGoals.map(g=>`<div class="scorer">⚽ ${esc(g.p)} ${g.m}'</div>`).join('');
     $('awayScorers').innerHTML=state.awayGoals.map(g=>`<div class="scorer">${g.m}' ${esc(g.p)} ⚽</div>`).join('');
 
-    const current=state.starters.filter(p=>!state.off.includes(p)).concat(state.on.filter(p=>!state.starters.includes(p)));
-    $('onPitch').innerHTML=current.map(p=>`<div class="player">${esc(p)}${state.on.includes(p)?'<span class="tag on">ON</span>':''}</div>`).join('');
-    const used=state.off.map(p=>`<div class="player off">${esc(p)}<span class="tag off">OFF</span></div>`);
-    const unused=state.bench.filter(p=>!state.on.includes(p)).map(p=>`<div class="player">${esc(p)}</div>`);
-    $('bench').innerHTML=used.concat(unused).join('') || '<div class="small">No substitutes</div>';
+    $('onPitch').innerHTML=state.onPitch.map(p=>`<div class="player onfield">${esc(p)}${state.everReturned.includes(p)?'<span class="tag return">RETURNED</span>':'<span class="tag on">ON</span>'}</div>`).join('');
+    const off=state.allPlayers.filter(p=>!state.onPitch.includes(p));
+    $('bench').innerHTML=off.map(p=>`<div class="player benched">${esc(p)}<span class="tag off">AVAILABLE</span></div>`).join('') || '<div class="small">Everyone is currently on the pitch</div>';
     $('events').innerHTML=state.events.map(e=>`<div class="event"><div class="eventMin">${e.m}'</div><div class="eventIcon">${e.i}</div><div class="eventText"><b>${esc(e.t)}</b>${e.s?`<div class="eventSub">${esc(e.s)}</div>`:''}</div></div>`).join('');
     $('updated').textContent='Last updated '+new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'});
   }
@@ -124,23 +127,35 @@
   }
   $('lineupTab').addEventListener('click',()=>tab('lineup')); $('updatesTab').addEventListener('click',()=>tab('updates'));
 
+  function interchange(returningOnly){
+    const off=state.allPlayers.filter(p=>!state.onPitch.includes(p));
+    let incoming;
+    if(returningOnly){ incoming=off.find(p=>state.everReturned.includes(p)===false && state.events.some(e=>e.t==='Interchange'&&e.s.includes(p+' off'))) || off[0]; }
+    else incoming=off[0];
+    const outgoing=state.onPitch.find(p=>p!=='Leo Osborne');
+    if(!incoming||!outgoing)return;
+    state.minute=Math.min(90,state.minute+1);
+    state.onPitch=state.onPitch.filter(p=>p!==outgoing);
+    state.onPitch.push(incoming);
+    if(state.events.some(e=>e.t==='Interchange'&&e.s.includes(incoming+' off')) && !state.everReturned.includes(incoming)) state.everReturned.push(incoming);
+    state.events.unshift({m:state.minute,i:'🔄',t:'Interchange',s:`${incoming} on • ${outgoing} off`});
+  }
+
   if(demo){
     $('demoPanel').classList.remove('hidden');
     document.querySelectorAll('[data-demo]').forEach(btn=>btn.addEventListener('click',()=>{
       const a=btn.dataset.demo;
       if(a==='goal'){state.minute=Math.min(90,state.minute+2);state.homeScore++;state.homeGoals.push({m:state.minute,p:'Alex Taylor'});state.events.unshift({m:state.minute,i:'⚽',t:'GOAL! Alex Taylor',s:`Perranporth ${state.homeScore}–${state.awayScore} ${state.away}`});state.status='LIVE'}
       if(a==='oppgoal'){state.minute=Math.min(90,state.minute+2);state.awayScore++;state.awayGoals.push({m:state.minute,p:state.away});state.events.unshift({m:state.minute,i:'⚽',t:'Goal — '+state.away,s:`Perranporth ${state.homeScore}–${state.awayScore} ${state.away}`});state.status='LIVE'}
-      if(a==='sub'){
-        const incoming=state.bench.find(p=>!state.on.includes(p)); const outgoing=state.starters.find(p=>!state.off.includes(p)&&p!=='Leo Osborne');
-        if(incoming&&outgoing){state.minute=Math.min(90,state.minute+1);state.on.push(incoming);state.off.push(outgoing);state.events.unshift({m:state.minute,i:'🔄',t:'Substitution',s:`${incoming} on • ${outgoing} off`});}
-      }
+      if(a==='interchange')interchange(false);
+      if(a==='return')interchange(true);
       if(a==='half'){state.status='HT';state.minute=45;state.events.unshift({m:45,i:'⏸',t:'Half Time',s:`Perranporth ${state.homeScore}–${state.awayScore} ${state.away}`})}
       if(a==='second'){state.status='LIVE';state.minute=46;state.events.unshift({m:46,i:'▶',t:'Second half underway',s:''})}
       if(a==='full'){state.status='FT';state.minute=90;state.events.unshift({m:90,i:'🏁',t:'Full Time',s:`Perranporth ${state.homeScore}–${state.awayScore} ${state.away}`})}
       render();
     }));
   } else {
-    $('statusPill').textContent='NO LIVE MATCH'; $('statusPill').className='livepill ft';
+    $('statusPill').textContent='NO LIVE MATCH'; $('statusPill').className='livepill none';
     $('minute').textContent='No live match at the moment';
   }
   render();
