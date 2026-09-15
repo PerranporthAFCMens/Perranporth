@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b5ea8">
+  <title>Perranporth Admin Panel</title>
+  <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png">
+  <link rel="icon" type="image/png" href="./apple-touch-icon.png">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <script src="./bridge-live.js?v=20260915-3"></script>
+  <script src="./button-feedback.js" defer></script>
+  <style>
+    :root{--blue:#0b5ea8;--dark:#123b5d;--danger:#c62828;--green:#23811c;--bg:#f3f6f8;--line:#d8e0e6;--text:#17212b;--muted:#71808e}
+    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+    body{margin:0;font-family:Arial,sans-serif;background:var(--bg);color:var(--text);-webkit-text-size-adjust:100%}
+    .app{width:100%;max-width:760px;margin:0 auto;padding:max(10px,env(safe-area-inset-top)) 10px max(24px,env(safe-area-inset-bottom))}
+    .card{background:#fff;border-radius:16px;padding:14px;margin-bottom:10px;box-shadow:0 1px 5px #00000010;border:1px solid #e9eef2}
+    .hero{display:flex;align-items:center;gap:12px}.badge{width:54px;height:54px;border-radius:50%;object-fit:contain;background:#fff}.heroActions{margin-left:auto;display:flex;gap:6px}
+    h1{font-size:22px;margin:0;color:var(--dark)}h2{font-size:18px;margin:0 0 12px}.muted{color:var(--muted);font-size:13px}.hidden{display:none!important}
+    input,select{width:100%;min-height:46px;padding:11px 12px;border:1px solid var(--line);border-radius:11px;font-size:16px;background:#fff;color:var(--text)}
+    label{display:block;font-size:13px;font-weight:700;margin:10px 0 5px}.btn{border:0;border-radius:11px;min-height:46px;padding:10px 13px;font-size:15px;font-weight:700;background:var(--blue);color:#fff;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}.btn.secondary{background:#e7edf2;color:#263746}.btn.danger{background:var(--danger)}.btn.green{background:var(--green)}.btn.full{width:100%}
+    .pinWrap{min-height:70vh;display:flex;align-items:center;justify-content:center}.pinCard{width:100%;max-width:380px;text-align:center}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:9px}.person{border:1px solid #dfe7ed;border-radius:13px;padding:12px;margin:9px 0}.personHead{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.pill{display:inline-block;border-radius:999px;padding:4px 8px;font-size:12px;font-weight:800;background:#eaf2fb;color:#135b99}.actions{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:10px}.checkRow{display:flex;align-items:center;gap:9px;margin-top:12px}.checkRow input{width:22px;min-height:22px}.checkRow label{margin:0;font-weight:700}.customBox{background:#f6f8fa;border-radius:11px;padding:10px;margin-top:9px}.customGrid{display:grid;grid-template-columns:1fr 1fr;gap:7px}.customGrid label{font-weight:400;margin:0;display:flex;gap:7px;align-items:center}.customGrid input{width:18px;min-height:18px}.toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:#17212b;color:#fff;padding:11px 16px;border-radius:20px;display:none;z-index:1000;max-width:90%;text-align:center}
+    @media(max-width:540px){.app{padding:max(7px,env(safe-area-inset-top)) 7px max(18px,env(safe-area-inset-bottom))}.row,.actions{grid-template-columns:1fr}.badge{width:46px;height:46px}h1{font-size:20px}}
+  </style>
+</head>
+<body onload="boot()">
+<div class="app">
+  <div id="loginWrap" class="pinWrap hidden"><div class="card pinCard"><h1>Admin Panel</h1><div class="muted" style="margin:8px 0 16px">Full Admin access only</div><input id="pinInput" type="password" inputmode="numeric" placeholder="Enter management PIN"><button id="loginBtn" class="btn full" style="margin-top:10px" onclick="login()">Open Admin Panel</button></div></div>
+  <div id="adminApp" class="hidden">
+    <div class="card hero"><img id="badge" class="badge" src="./apple-touch-icon.png" alt="Perranporth AFC"><div><h1>Admin Panel</h1><div class="muted">Management access & PIN recovery</div></div><div class="heroActions"><a class="btn secondary" href="./">Home</a><button class="btn secondary" onclick="logout()">Log out</button></div></div>
+    <div class="card"><h2 id="formTitle">Grant management access</h2><input id="userId" type="hidden"><div class="row"><div><label>Name</label><input id="name" placeholder="Name"></div><div><label>Email</label><input id="email" type="email" placeholder="name@example.com"></div></div><div class="row"><div><label>Access</label><select id="role" onchange="toggleCustom()"><option value="FULL_ADMIN">Full Admin</option><option value="MATCHDAY">Matchday</option><option value="VOTING">Voting</option><option value="SUBS">Subs</option><option value="READ_ONLY">Read Only</option><option value="CUSTOM">Custom</option></select></div><div><label>Linked player</label><select id="linkedPlayer"><option value="">None</option></select></div></div><div class="checkRow"><input id="playerAccessToo" type="checkbox"><label for="playerAccessToo">Player access too — reset both PINs together</label></div><div id="customBox" class="customBox hidden"><div class="muted" style="margin-bottom:8px">Custom access</div><div class="customGrid"><label><input type="checkbox" value="match"> Match Centre</label><label><input type="checkbox" value="voting"> Voting Centre</label><label><input type="checkbox" value="subs"> Subs Tracker</label><label><input type="checkbox" value="read"> Dashboards / read only</label></div></div><div class="actions"><button class="btn green" onclick="saveUser()">Save Access</button><button class="btn secondary" onclick="clearForm()">Clear</button></div></div>
+    <div class="card"><h2>Management users</h2><div id="users"><div class="muted">Loading…</div></div></div>
+  </div>
+</div><div id="toast" class="toast"></div>
+<script>
+const AUTH_KEY='pmd_admin_auth'; let TOKEN=''; let DATA=null;
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.style.display='block';setTimeout(()=>t.style.display='none',3000)}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function saved(){try{return JSON.parse(localStorage.getItem(AUTH_KEY)||'null')}catch(e){return null}}
+function saveSession(s){try{localStorage.setItem(AUTH_KEY,JSON.stringify(s))}catch(e){}}
+function clearSession(){try{localStorage.removeItem(AUTH_KEY)}catch(e){}}
+async function boot(){const s=saved();if(s&&s.token&&s.expiresAt>Date.now()){TOKEN=s.token;try{return await load()}catch(e){clearSession();TOKEN=''}}showLogin()}
+function showLogin(){document.getElementById('adminApp').classList.add('hidden');document.getElementById('loginWrap').classList.remove('hidden')}
+async function login(){const pin=document.getElementById('pinInput').value.trim();if(!pin)return toast('Enter PIN');const b=document.getElementById('loginBtn');b.disabled=true;b.textContent='Opening…';try{const s=await pmdCall('createAdminSession',pin);TOKEN=s.token;saveSession(s);await load()}catch(e){TOKEN='';toast(e.message||'Access denied');b.disabled=false;b.textContent='Open Admin Panel'}}
+async function logout(){const t=TOKEN;TOKEN='';clearSession();try{if(t)await pmdCall('logoutAdminSession',t)}catch(e){}showLogin()}
+async function load(){DATA=await pmdCall('getManagementAdminData',TOKEN);document.getElementById('loginWrap').classList.add('hidden');document.getElementById('adminApp').classList.remove('hidden');renderPlayers();renderUsers()}
+function renderPlayers(){const s=document.getElementById('linkedPlayer');s.innerHTML='<option value="">None</option>'+(DATA.players||[]).map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join('')}
+function roleLabel(r){return({FULL_ADMIN:'Full Admin',MATCHDAY:'Matchday',VOTING:'Voting',SUBS:'Subs',READ_ONLY:'Read Only',CUSTOM:'Custom'})[r]||r}
+function renderUsers(){const h=document.getElementById('users');const a=DATA.users||[];h.innerHTML=a.length?a.map(u=>`<div class="person"><div class="personHead"><div><b>${esc(u.name)}</b><div class="muted">${esc(u.email||'No email')} ${u.linkedPlayer?`· Player: ${esc(u.linkedPlayer)}`:''}</div></div><span class="pill">${esc(roleLabel(u.role))}</span></div><div class="muted" style="margin-top:7px">Player access too: <b>${u.playerAccessToo?'Yes':'No'}</b></div><div class="actions"><button class="btn secondary" onclick="editUser('${esc(u.id)}')">Edit</button><button class="btn" onclick="sendReset('${esc(u.id)}')">Send PIN Reset</button><button class="btn secondary" onclick="revokeSessions('${esc(u.id)}')">Sign Out Everywhere</button><button class="btn danger" onclick="removeUser('${esc(u.id)}')">Remove Access</button></div></div>`).join(''):'<div class="muted">No individual management users yet. Your main management PIN still works as normal.</div>'}
+function clearForm(){document.getElementById('formTitle').textContent='Grant management access';['userId','name','email'].forEach(id=>document.getElementById(id).value='');document.getElementById('role').value='FULL_ADMIN';document.getElementById('linkedPlayer').value='';document.getElementById('playerAccessToo').checked=false;document.querySelectorAll('#customBox input').forEach(x=>x.checked=false);toggleCustom()}
+function editUser(id){const u=(DATA.users||[]).find(x=>x.id===id);if(!u)return;document.getElementById('formTitle').textContent='Edit '+u.name;document.getElementById('userId').value=u.id;document.getElementById('name').value=u.name;document.getElementById('email').value=u.email||'';document.getElementById('role').value=u.role;document.getElementById('linkedPlayer').value=u.linkedPlayer||'';document.getElementById('playerAccessToo').checked=!!u.playerAccessToo;document.querySelectorAll('#customBox input').forEach(x=>x.checked=(u.customAccess||[]).includes(x.value));toggleCustom();window.scrollTo({top:0,behavior:'smooth'})}
+function toggleCustom(){document.getElementById('customBox').classList.toggle('hidden',document.getElementById('role').value!=='CUSTOM')}
+async function saveUser(){const d={id:document.getElementById('userId').value.trim(),name:document.getElementById('name').value.trim(),email:document.getElementById('email').value.trim(),role:document.getElementById('role').value,linkedPlayer:document.getElementById('linkedPlayer').value,playerAccessToo:document.getElementById('playerAccessToo').checked,customAccess:[...document.querySelectorAll('#customBox input:checked')].map(x=>x.value)};if(!d.name)return toast('Enter a name');try{await pmdCall('saveManagementUser',TOKEN,d);toast('Access saved');clearForm();await load()}catch(e){toast(e.message||'Could not save access')}}
+async function sendReset(id){if(!confirm('Send a management PIN reset email?'))return;try{await pmdCall('sendManagementPinReset',TOKEN,id);toast('Reset email sent')}catch(e){toast(e.message||'Could not send email')}}
+async function revokeSessions(id){if(!confirm('Sign this user out on all management devices?'))return;try{await pmdCall('revokeManagementSessions',TOKEN,id);toast('Sessions revoked')}catch(e){toast(e.message||'Could not revoke sessions')}}
+async function removeUser(id){if(!confirm('Remove this person’s management access?'))return;try{await pmdCall('revokeManagementUser',TOKEN,id);toast('Management access removed');await load()}catch(e){toast(e.message||'Could not remove access')}}
+</script>
+</body>
+</html>
