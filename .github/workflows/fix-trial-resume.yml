@@ -1,0 +1,113 @@
+name: Fix trial match resume
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/fix-trial-resume.yml'
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch trial resume
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('match.html')
+          s=p.read_text()
+
+          old="""async function restoreSession(){
+  let raw;try{raw=localStorage.getItem('pmd_session')}catch(e){return}
+  if(!raw)return;
+  let sess;try{sess=JSON.parse(raw)}catch(e){clearSession();return}
+  if(!sess||!sess.matchId)return;
+  try{
+    const squad=await call('getSquad',PIN,sess.matchId);
+    const summary=await call('getMatchSummary',PIN,sess.matchId);
+    if(!squad.length||!summary.match||!summary.match.matchId||summary.match.status==='Completed'){clearSession();return}
+    currentMatchId=sess.matchId;
+    currentSummary=summary;
+    showView('match');
+    renderSummary(currentSummary);
+    applyClockState_(summary.clock);
+    toast('Resumed your match in progress');
+  }catch(e){clearSession()}
+}"""
+
+          new="""async function restoreSession(){
+  let savedId='';
+  try{
+    const raw=localStorage.getItem('pmd_session');
+    if(raw){
+      const sess=JSON.parse(raw);
+      if(sess&&sess.matchId)savedId=String(sess.matchId);
+    }
+  }catch(e){clearSession()}
+
+  // First try the exact match this device was using. A squad is NOT required:
+  // managers are allowed to start the match and set the starting XI afterwards.
+  if(savedId){
+    try{
+      const summary=await call('getMatchSummary',PIN,savedId);
+      if(summary&&summary.match&&summary.match.matchId&&summary.match.status!=='Completed'){
+        currentMatchId=savedId;
+        currentSummary=summary;
+        showView('match');
+        renderSummary(currentSummary);
+        applyClockState_(summary.clock);
+        saveSession();
+        toast('Resumed your match in progress');
+        return;
+      }
+      clearSession();
+    }catch(e){clearSession()}
+  }
+
+  // Trial matches are deliberately hidden from the normal match list. If the
+  // browser lost its saved session, discover a currently-live trial via the
+  // public spectator feed and reopen it for management.
+  try{
+    const live=await call('getPublicSpectatorData');
+    const liveId=live&&live.live&&live.match?String(live.match.matchId||''):'';
+    if(/^TRIAL-/i.test(liveId)){
+      const summary=await call('getMatchSummary',PIN,liveId);
+      if(summary&&summary.match&&summary.match.status==='Live'){
+        currentMatchId=liveId;
+        currentSummary=summary;
+        showView('match');
+        renderSummary(currentSummary);
+        applyClockState_(summary.clock);
+        saveSession();
+        toast('Resumed live trial match');
+      }
+    }
+  }catch(e){}
+}"""
+
+          if old not in s:
+              raise SystemExit('restoreSession block not found')
+          s=s.replace(old,new,1)
+
+          old2="""    showView('match');
+    renderSummary(currentSummary);
+    applyClockState_(currentSummary.clock);
+    toast('Trial match ready');"""
+          new2="""    showView('match');
+    renderSummary(currentSummary);
+    applyClockState_(currentSummary.clock);
+    saveSession();
+    toast('Trial match ready');"""
+          if old2 not in s:
+              raise SystemExit('trial start block not found')
+          s=s.replace(old2,new2,1)
+          p.write_text(s)
+          PY
+      - name: Commit patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add match.html
+          git commit -m "Restore live trial match after refresh"
+          git push
