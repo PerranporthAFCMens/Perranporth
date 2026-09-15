@@ -147,7 +147,7 @@
       <h1>Match Centre</h1>
       <div class="muted" style="margin:8px 0 16px">Management access only</div>
       <input id="pinInput" type="password" inputmode="numeric" placeholder="Enter PIN">
-      <button id="loginBtn" class="btn full" style="margin-top:10px" onclick="login()">Open MC2</button>
+      <button id="loginBtn" class="btn full" style="margin-top:10px" onclick="login()">Open Match Centre</button>
     </div>
   </div>
 
@@ -165,6 +165,7 @@
         <div id="selectedMatchInfo" class="muted" style="margin-top:8px"></div>
 
         <button class="btn full" onclick="openSelectedMatch()">Open Match</button>
+        <button class="btn green full" style="margin-top:8px" onclick="resumeLiveMatch()">▶ Resume Live Match</button>
 
         <div class="grid2 homeActions" style="margin-top:10px">
           <button class="btn vote" onclick="startTrialMatch()">Trial Match</button>
@@ -1292,6 +1293,26 @@ async function editCurrentSquad(){
   if(m&&m.status==='Live')return toast('Edit the squad before kickoff or after full time');
   const existing=await call('getSquad',PIN,currentMatchId);
   buildSquad(existing,false);
+}
+
+async function resumeLiveMatch(){
+  try{
+    const live=await call('getPublicSpectatorData');
+    const liveId=live&&live.live&&live.match?String(live.match.matchId||''):'';
+    if(!liveId)return toast('No live match found');
+    const summary=await call('getMatchSummary',PIN,liveId);
+    if(!summary||!summary.match||summary.match.status!=='Live')return toast('No live match found');
+    currentMatchId=liveId;
+    currentSummary=summary;
+    showView('match');
+    renderSummary(currentSummary);
+    applyClockState_(summary.clock);
+    saveSession();
+    ensureSummarySync_();
+    toast(/^TRIAL-/i.test(liveId)?'Resumed live trial match':'Resumed live match');
+  }catch(e){
+    toast(e&&e.message?e.message:'Could not resume live match');
+  }
 }
 
 async function openSelectedMatch(){
