@@ -1,159 +1,227 @@
-# Perranporth 2026/27 App — Project Context / Source of Truth
+# Perranporth 2026/27 App — Technical Source of Truth
 
-> **Purpose:** This file is the technical handover for continuing the Perranporth AFC 2026/27 match-data / voting / player portal project in a fresh ChatGPT conversation. **Read this file before making changes.**
+> **Purpose:** Technical handoff for continuing the live Perranporth AFC 2026/27 app safely in a fresh ChatGPT conversation.
 >
-> **Important:** Treat the live GitHub repo and the current Apps Script deployment as the source of truth. Do not rebuild features from scratch or revert to older layouts unless specifically asked.
+> **Read first:** [`CURRENT_STATE_2026-09-16.md`](./CURRENT_STATE_2026-09-16.md)
+>
+> **Important:** Perranporth is now the live/reference implementation for Football PA. Productisation work belongs in `PerranporthAFCMens/Football-PA-Core`, not against the live Perranporth system.
 
 ## 1. Working style
 
 - Use British spelling.
-- Prefer direct, practical answers and avoid unnecessary explanation.
-- **For code changes: provide / apply whole-file replacements, never fragments.**
-- Keep changes incremental and avoid multiple unrelated edits at once.
-- If a regression appears, inspect the current live file and previous known-good behaviour before changing architecture.
-- GitHub is connected to ChatGPT and can be edited directly when requested.
-- Apps Script still requires manual paste/update and redeploy unless another deployment workflow is added later.
+- Prefer direct, practical answers.
+- For Apps Script changes, provide one complete replacement `Code.gs` rather than fragments.
+- Keep live changes incremental.
+- Inspect current GitHub/live source before changing behaviour.
+- Do not reconstruct the app from memory when source is available.
+- Mobile/iPhone use is the priority.
+- Never expose PINs, hashes, session tokens, reset tokens, API keys, dates of birth or other sensitive player data.
 
-## 2. Current architecture
+## 2. Repositories and rollback
 
-Preferred architecture:
-
-- **GitHub Pages = front end / visible UI**
-- **Google Apps Script = backend/API/auth/business logic**
-- **Google Sheets = database**
-
-The migration to GitHub was done because Apps Script pages were visibly slower and flashed old Google/Match Centre screens between routes.
-
-### GitHub
-
-Repository:
+Live/reference repository:
 - `PerranporthAFCMens/Perranporth`
 
-Pages root:
+Football PA product repository:
+- `PerranporthAFCMens/Football-PA-Core`
+
+Frozen reference branch created before productisation:
+- `snapshot-2026-09-16-pre-productisation`
+
+Do not delete or rewrite the frozen branch.
+
+## 3. Current architecture
+
+- **GitHub Pages** = visible/mobile UI
+- **Google Apps Script** = API, business logic, sessions/authentication and data writes
+- **Google Sheets** = live data store
+
+Control Centre:
 - `https://PerranporthAFCMens.github.io/Perranporth/`
 
-Key GitHub files currently in use:
-- `index.html` — Control Centre
-- `dashboard.html` — Season Dashboard
-- `subs.html` — Subs Tracker
-- `ghost.html` — Ghost Mode selector
-- `player.html` — Player Portal
-- `voting.html` — Voting Centre
-- `vote.html` — player voting page
-- `bridge-client.js` — GitHub → Apps Script JSONP RPC bridge
-- `button-feedback.js` — shared visible pressed / busy-state interaction layer
-- `apple-touch-icon.png`
-- `manifest.webmanifest`
-
-### Apps Script
-
-Current deployment URL:
+Apps Script deployment:
 - `https://script.google.com/macros/s/AKfycbyHHPOgGsImS9Kvr3SdZiKUGp3ZrbnOoJnIPUckm_Y9hH1K9b_j_Kgmw6UhzVMAyQ0q/exec`
 
-Apps Script remains the backend and also still hosts the Match Centre.
-
-Current intended routing:
-- GitHub `/` → Control Centre
-- GitHub `/dashboard.html` → Season Dashboard
-- GitHub `/subs.html` → Subs Tracker
-- GitHub `/ghost.html` → Ghost Mode
-- GitHub `/player.html` → Player Portal
-- GitHub `/voting.html` → Voting Centre
-- GitHub `/vote.html` → Player voting
-- Apps Script `?page=admin` → Match Centre
-
-**Match Centre should remain on Apps Script for now.** It is write-heavy and tightly coupled to live match actions, timers, event logging, substitutions and admin state. Do not migrate it casually.
-
-## 3. Data workbook
-
-Main Google Sheet:
+Main workbook:
 - `Perranporth Game Data 2026-27`
 - Spreadsheet ID: `1GZrxajK6vApjG8kQeYKMZS_Dff7lZ52GgE_XFTKveM0`
 
-Important tabs:
-- Dashboard
-- Matchday
-- Voting Leaderboard
-- Subs
-- Matches
-- Events
-- Players
-- Lineup Positions (hidden)
-- Player Match Data (hidden)
-- Zones (hidden)
-- Lists (hidden)
-- Match Report (hidden)
-- Settings (hidden)
-- Votes (hidden)
-- Subs Confirmations (hidden / auto-created when needed)
+Important workbook tabs include Dashboard, Matchday, Voting Leaderboard, Subs, Matches, Events, Players, Settings, Votes and hidden support tabs.
 
-Do **not** use the older duplicate workbook unless explicitly asked.
+## 4. Current GitHub pages
 
-## 4. Apps Script API / bridge
+Current user-facing pages include:
+- `index.html` — Control Centre
+- `match.html` — Match Centre
+- `dashboard.html` — Season Dashboard
+- `minutes.html` — Player Minutes
+- `subs.html` — Subs Tracker
+- `voting.html` — Voting Centre
+- `vote.html` — Player voting
+- `player.html` — Player Portal
+- `ghost.html` — Ghost Mode
+- `pins.html` — Player PIN tools
+- `admin-panel.html` — Admin Panel
+- `admin-reset.html` — management reset page
+- `live.html` — public Live Spectator Board
 
-GitHub cannot use `google.script.run`, so the GitHub-hosted pages use Apps Script as an API.
+Shared support includes:
+- `bridge-live.js`
+- other bridge helpers retained for compatibility/history
+- `button-feedback.js`
 
-The current bridge approach is **JSONP**, not an iframe.
+### Important correction
 
-`bridge-client.js` points at the Apps Script deployment and calls:
-- `?api=rpc&callback=...&payload=...`
+Older handoffs said Match Centre remained Apps Script-hosted. That migration is complete: `match.html` is now the current GitHub-hosted Match Centre frontend.
 
-Reason for JSONP:
-- avoids browser CORS restrictions
-- avoids embedding the Google Apps Script web app in a hidden iframe
-- hidden iframe approach caused Safari / iOS issues and visible Google navigation behaviour
+`MC2_HANDOFF.md` is now historical documentation of the migration and test strategy.
 
-Dashboard uses JSONP directly for public read-only data, including endpoints such as:
-- `api=dashboardCurrent`
-- `api=dashboardHistoric`
+## 5. Apps Script / bridge model
 
-Subs uses RPC functions such as:
-- `openSubsWithPin`
-- `resumeSubs`
-- `getSubsTrackerData`
-- `setSubsStatus`
-- `logoutAdminSession`
+GitHub pages cannot use `google.script.run`, so front-end pages call Apps Script through JSONP/RPC bridges.
 
-The latest Subs optimisation combined startup calls so it does not serially do verify → settings → tracker every time.
+Key rules:
+- normal RPC timeout is around 30 seconds
+- Player Portal / Ghost data builds may legitimately use a longer timeout around 60 seconds
+- do not mistake a slow historic/player-data build for failed authentication
+- do not move UI-feedback concerns into the transport layer
 
-Current bridge timeouts:
-- normal RPC calls: **30 seconds**
-- Player Portal / Ghost player-data builds: **60 seconds**
+### Backend source warning
 
-The longer player-data timeout is deliberate because those calls can build current + historic statistics. Do not mistake a slow player-data build for a failed login and do not casually reduce this timeout.
+The live backend has been updated by manually pasting/deploying complete `Code.gs` files during development.
 
-## 5. Authentication rules
+Before changing backend code:
+1. compare current deployed/latest local backend source with `apps-script/code.gs`
+2. do not assume the GitHub backend copy is newer
+3. protect Resend, management permissions and audit-log work from accidental overwrite
 
-Management pages use a 24-hour admin session stored in local storage under:
-- `pmd_admin_auth`
+## 6. Authentication and management access
 
-Do **not** put management PINs, player PINs, dates of birth, payment-account details, safeguarding details or other sensitive/personal data into this public repository or context file.
+Current live Perranporth still uses custom PIN/session authentication.
 
-Player Portal supports player-specific PINs and a first-login “choose your own 4-digit PIN” flow.
+Management sessions are persistent browser sessions and can be revoked/sign-out-everywhere.
 
-Ghost Mode is management-only and read-only.
+The Admin Panel supports individual management users with granular access.
 
-## 6. Dashboard — CRITICAL zone-map requirement
+Current permission areas include:
+- Match Centre
+- Voting Centre
+- Subs Tracker
+- Season Dashboard
+- Player Minutes
+- Ghost Mode
+- Player PINs
+- Admin Panel
 
-This has regressed more than once. **Do not replace the zone maps with a full-pitch diagram.**
+Preset roles may remain as shortcuts, but underlying permissions should be granular.
 
-The correct visual is an **attacking half-pitch only**, with the goal line at the top and halfway line / outer half-pitch boundary at the bottom.
+`Player access too` is separate from management access and can link a management identity to a Player Portal identity.
 
-### Required zone layout
+Linked player/management accounts use the same four-digit PIN and a reset updates both.
 
-- **Zones 1–5 are entirely inside the 18-yard penalty area.**
-- Zones 1–3 are stacked vertically in the centre.
-- Zones 1–3 share the central / 6-yard-box-width channel.
-- Zone 4 sits left of Zones 1–3 inside the 18-yard box.
-- Zone 5 sits right of Zones 1–3 inside the 18-yard box.
-- Zone 6 is outside the 18-yard box on the upper-left side.
-- Zone 7 is outside the 18-yard box on the upper-right side.
-- Zone 8 is central immediately outside the penalty area.
-- Zone 9 is the left-side deeper channel.
-- Zone 10 is the central deeper area.
-- Zone 11 is the right-side deeper channel.
+Management-only accounts may use a 4–8 digit management PIN.
 
-Known-good approximate CSS proportions:
+## 7. Transactional email
+
+Management email uses **Resend** rather than `MailApp`.
+
+Sender:
+- `Football PA <support@footballpa.com>`
+
+Domain:
+- `footballpa.com`
+
+The domain has been verified in Resend.
+
+The Resend API key must remain in secure Apps Script Script Properties/server-side configuration and never in GitHub.
+
+Current email flows:
+- welcome email for linked player/management user
+- welcome email for management-only user / create PIN
+- management PIN reset
+
+Admin Panel includes:
+- Send Welcome Email
+- Send PIN Reset
+- Sign Out Everywhere
+- Remove Management Access
+
+Welcome emails should reflect the user’s current assigned access.
+
+## 8. Management audit logging
+
+A management audit/activity log has been introduced.
+
+Expected meaningful events include:
+- login/logout
+- area/page opened
+- management access changes
+- welcome email sent
+- PIN reset initiated
+- sessions revoked
+- voting state changes
+- subs/payment status changes
+- meaningful Match Centre actions
+
+Expected hidden sheet:
+- `Management Audit Log`
+
+Never log credentials or auth tokens.
+
+The Admin Panel should expose useful activity history to authorised Full Admin users.
+
+## 9. Performance monitoring
+
+A dedicated lightweight performance monitor is an agreed next requirement.
+
+Desired measurements:
+- page
+- user where authenticated
+- first usable render
+- data loaded
+- total load duration
+- cached/uncached
+- live refresh success/failure
+
+Desired admin summary:
+- average load time
+- slowest page
+- recent page loads
+- flag slow loads (roughly above 3 seconds)
+
+Verify the current live code before assuming this is fully implemented.
+
+## 10. Dashboard loading behaviour
+
+The dashboard was changed to a cached-first + live-refresh approach and the user confirmed it became much quicker.
+
+Required behaviour:
+- repeat visits may show the most recently cached current-season result immediately
+- fresh live current-season data is still requested every time the dashboard opens
+- the screen refreshes when the fresh response returns
+- historic comparison must not block the initial current-season render
+- do not turn this into stale-only caching
+
+## 11. Dashboard — critical zone model
+
+This has regressed before. Never replace it with a full-pitch diagram.
+
+The visual is an **attacking half-pitch** with the goal line at the top.
+
+### Required zones
+
+- Zones 1–5 are entirely inside the 18-yard penalty area
+- Zones 1–3 stack vertically in the central channel
+- Zone 4 sits left of Zones 1–3 inside the box
+- Zone 5 sits right of Zones 1–3 inside the box
+- Zone 6 is upper-left outside the box
+- Zone 7 is upper-right outside the box
+- Zone 8 is central immediately outside the penalty area
+- Zone 9 is the deeper left channel
+- Zone 10 is the deeper central area
+- Zone 11 is the deeper right channel
+
+Known-good approximate CSS:
 
 ```css
 .pitch{position:relative;background:#528844;border:3px solid #d9e8d2;border-radius:5px;aspect-ratio:1.30/1;overflow:hidden}
@@ -170,13 +238,7 @@ Known-good approximate CSS proportions:
 .z11{left:80%;top:36%;width:20%;height:64%}
 ```
 
-Correct pitch markings are drawn with SVG, not CSS circles/arcs. The intended SVG includes:
-- goal line at top
-- 18-yard box around Zones 1–5
-- 6-yard box centrally
-- goal mouth
-- penalty spot
-- a proper penalty arc outside the penalty area
+Pitch markings are drawn with SVG, including penalty area, six-yard box, goal mouth, penalty spot and arc.
 
 Known-good marking geometry:
 
@@ -191,205 +253,152 @@ Known-good marking geometry:
 </svg>
 ```
 
-The zone tiles should display:
-- the **count as the large number**
-- `Z1`, `Z2`, etc. underneath as the small label
+Zone tiles show count as the large value and `Z1`, `Z2`, etc. underneath.
 
-The current target appearance is the supplied mobile reference image: half-pitch heat maps titled Goal Locations and Assist Locations, with Zones 1–5 visibly enclosed by the penalty-area boundary.
+## 12. Dashboard/stat rules
 
-## 7. Dashboard behaviour
-
-Dashboard shows live current-season event data and historic comparison.
-
-Important behaviours:
 - Current season: 2026/27
-- Historic comparison season: 2025/26
-- Same-stage comparison is the default: compare the first `min(current games, historic games)` matches.
-- An “all available games” comparison option also exists.
-- Trial/Test/Demo matches must be excluded.
-- A completed match only appears in the detailed dashboard when event data exists for it.
+- Historic comparison: 2025/26
+- same-stage comparison uses the first `min(current games, historic games)` matches
+- an all-available-games comparison also exists
+- Trial/Test/Demo matches must be excluded from normal views
+- clean-sheet credit belongs in My Season
+- a player who actually appeared in a match where Perranporth conceded zero receives a clean sheet; not goalkeeper-only
 
-Clean-sheet rule:
-- Clean Sheets belongs on “My Season”.
-- Any player who actually appeared in a match where Perranporth conceded 0 gets a clean sheet — not goalkeeper-only.
+## 13. Match Centre rules
 
-## 8. Subs Tracker semantics
+Current/required behaviour includes:
+- default formation 4-2-3-1
+- Half Time changes to End Game in the second half
+- Share Result appears after Finish Match
+- scorer cannot equal assister
+- No Assist remains supported
+- Save Lineup / starting-line-up flow
+- Resume Live Match
+- newly added players must remain available across match/line-up/subs views
+- Pause should feel immediate/optimistic
+- event edit and delete
+- duplicate-submit protection
 
-£3 per played match.
+### Minutes
+- complete first half = 45 minutes even with stoppage time
+- complete match = 90 minutes even with stoppage time
+- substitutions are the source of truth
+- stoppage-time timestamps are preserved
+- do not invent historic substitution times
 
-Status meanings:
-- **Confirmed Paid** = green, payment confirmed by management
-- **Claims Paid** = yellow, player claims they paid but management has not confirmed
-- **Not Paid** = red
-- **Unconfirmed** = grey
-- **N/A** = not due
-
-Payment rules:
-- A player payment link includes only `Not Paid` + `Unconfirmed` items.
-- `Claims Paid` is excluded from the amount to avoid double payment.
-- Management confirmation is stored separately in `Subs Confirmations`.
-
-Admin “By Player” view should show:
-- unpaid matches
-- exact amount due
-- one combined payment link
-- copyable match/payment summary
-- Claims Paid listed as awaiting confirmation but excluded from amount due
-
-## 9. Subs Tracker — current state
-
-The earlier report that Subs was visibly taking the user through Apps Script is **not currently treated as an active code defect**.
-
-Current verified routing:
-- Control Centre links directly to GitHub `./subs.html`
-- `subs.html` is GitHub-hosted
-- Apps Script is used only as the JSONP backend/API
-- old iOS / Home Screen shortcuts can still cache pre-migration routes, so if visible Apps Script navigation reappears, first capture the exact URL and reproduce before changing the code
-
-Do not blindly rewrite Subs routing unless the live source proves that a current action is navigating away from GitHub.
-
-## 10. Match Centre / event rules
-
-Match Centre remains Apps Script.
-
-Important event behaviour:
-- double-submit protection exists for event save actions
-- substitutions are the source of truth for minute calculations
-- stoppage-time event timestamps are preserved
-- a player playing the whole first half gets 45 minutes even if HT is 45+3
-- a player playing the whole match gets 90 minutes even if FT is 90+5
-
-Do not invent missing substitution times for historic games.
-
-## 11. Voting
+## 14. Voting
 
 Voting is 3–2–1 plus Dick of the Day.
 
-Voting Centre currently supports:
-- current voting match
-- select match
-- open / close voting
-- player voting URL + copy
-- ballots received
-- Top 3
-- Dick of the Day
-- who has voted / still to vote
-
-Countback ordering:
+Countback:
 1. total points
 2. number of 3-point votes
 3. number of 2-point votes
 4. number of 1-point votes
 5. tied if still equal
 
-### Preferred future voting flow — not implemented yet
+Future preferred direction, if not already implemented:
+- permanent voting link
+- fixture/date validation
+- open around scheduled kick-off
+- close at midnight
+- no voting on non-match days
 
-The agreed direction is to simplify match selection and prevent wrong-match voting:
-- keep **one permanent voting link**
-- there will not be two first-team matches on the same day
-- the fixture on today’s date is the only valid voting match
-- automatically open voting at scheduled kick-off
-- automatically close voting at midnight that night
-- on non-match days, show that no voting is open
-- clearly show today’s opponent / competition / date / closing time on the voting page
-- submissions should be written explicitly against today’s valid fixture rather than relying on stale Settings state
+Check live code before changing this flow.
 
-Because fixture changes can happen close to kick-off, automatic opening should only happen after validating that the fixture is still valid/current. This design remains conceptual until the backend and voting pages are deliberately updated together.
+## 15. Subs Tracker
 
-## 12. Player Portal
+Current Perranporth amount:
+- £3 per played match
 
-Player Portal includes:
-- personal stats
-- My Season
-- team dashboard summary
-- voting when open
-- subs/payment information
-- historic / current comparison where appropriate
+Statuses:
+- Confirmed Paid
+- Claims Paid
+- Not Paid
+- Unconfirmed
+- N/A
 
-Player login behaviour:
-- the login button should immediately show **Logging in…** and disable while the session + portal data load
-- failed login/data calls must restore the button and show the error
-- player-data calls can use the 60-second bridge timeout described above
+Rules:
+- payment amount includes Not Paid + Unconfirmed
+- Claims Paid is excluded to prevent double payment
+- management confirmation remains separate
 
-Ghost Mode must show the exact player portal read-only without requiring the player’s PIN.
+The current Monzo-style link is a prototype/reference payment mechanism. Football PA Core will investigate a more professional low-cost Pay-by-Bank/Open-Banking style approach. Do not remove the working Perranporth mechanism until a tested replacement exists.
 
-Ghost selection key used in local storage:
-- `pmd_ghost_player`
+## 16. Player Portal / Ghost Mode
 
-## 13. Player identity / naming rules
+Player Portal includes personal stats, My Season, team summary, voting, subs/payment information and historic/current data where appropriate.
 
-Do **not** list player names in this public context file.
+Ghost Mode must remain:
+- management-only
+- read-only
+- equivalent to the selected player’s portal
 
-The live player list and any aliases should be read from the Google Sheet / backend when needed.
+Preserve distinct player identities exactly. Do not merge similarly named players.
 
-Important implementation rule:
-- preserve distinct player identities exactly as stored in the source data
-- do not merge similarly named players
-- historic aliases may exist and should be handled in code/data mapping rather than documented here
+## 17. Live spectator board
 
-## 14. Match-data protection rules
+`live.html` is public and does not require management login.
 
-Do **not** duplicate identifiable player-level match details in this public context file.
+It may show match score, clock, scorers/cards/interchanges/current line-up and live match updates, but must not expose protected management/player information.
 
-When changing or debugging match data:
-- read the official current rows from the Google Sheet / Apps Script backend
-- do not invent missing substitution times
-- do not casually rework previously cleaned event/minute data
-- preserve known official Match IDs and fixture records in the data source rather than copying them into this file
+## 18. UI interaction standard
 
-## 15. Test-data cleanup already completed
+- mobile first
+- every tappable control should respond visually immediately
+- long async actions should show busy/disabled state where practical
+- success/failure must be obvious
+- keep UI feedback separate from bridge/API transport logic
 
-A previous test match dataset was fully removed from:
-- Matches
-- Subs
-- Votes
-- Settings voting selection
+## 19. Productisation boundary
 
-Do not reintroduce deleted test data into live views.
+Football PA Core is the safe development environment for the saleable product.
 
-## 16. UI interaction standard
+Target direction:
+- Supabase Auth
+- Organisation → Club → Team → Season → Match / Player / Event
+- one account can belong to multiple clubs/teams
+- configuration-driven badge/colours/team/season
+- self-service onboarding
+- payment-provider abstraction
+- performance and audit tooling
+- gradual migration away from Sheets/Apps Script, not a big-bang rewrite
 
-Mobile use is the priority. Buttons should never feel dead or ambiguous.
+Read `PRODUCTISATION_HANDOFF.md` in `PerranporthAFCMens/Football-PA-Core` before product work.
 
-- GitHub UI pages use `button-feedback.js` directly rather than loading it indirectly through `bridge-client.js`.
-- Every tappable button / button-style link should visibly press immediately.
-- Longer async actions should show a busy/disabled state or an explicit loading label where practical.
-- Success / failure feedback should make it clear whether the action actually completed.
-- Keep the API bridge focused on transport/auth/data. Do not couple UI feedback loading into `bridge-client.js`.
-- The Dashboard already has its own back/refresh pressed-state styling; avoid unnecessary dashboard changes when the existing controls are working.
+## 20. Things not to regress
 
-## 17. Things not to regress
+1. Fast GitHub-hosted mobile UI.
+2. Current live dashboard data remains live.
+3. Half-pitch zone visual; Zones 1–5 inside the box.
+4. Match Centre minute/stoppage-time rules.
+5. Duplicate-submit protection.
+6. Trial/Test/Demo data excluded from normal views.
+7. Subs status/payment semantics.
+8. Voting countback.
+9. Ghost Mode read-only.
+10. Distinct player identities.
+11. No secrets in GitHub/logs.
+12. Resend email and granular management permission work.
+13. Audit logging must not record credentials.
 
-Before any refactor, explicitly protect these:
+## 21. Fresh-chat workflow
 
-1. GitHub front end remains fast and does not visibly bounce through Apps Script except Match Centre.
-2. Dashboard zone maps are half-pitch, never full-pitch.
-3. Zones 1–5 are inside the 18-yard box.
-4. Dashboard data must remain live and not revert to `Season undefined` / zeros.
-5. Subs statuses and payment semantics above must remain intact.
-6. Ghost Mode is read-only.
-7. Player Portal PIN selection/change flow must remain intact.
-8. Trial/Test/Demo data stays out of normal dashboard/match lists.
-9. Preserve distinct player identities; do not accidentally merge players.
-10. Do not expose PINs, personal information or authentication secrets in GitHub.
-11. Keep button feedback separate from API transport logic.
+For live Perranporth work, start with:
 
-## 18. Recommended workflow in a new chat
-
-Start with:
-
-> “Continue the Perranporth app project. Read `PROJECT_CONTEXT.md` in my GitHub repo first, then inspect the current live files before making any change.”
+> **Continue the Perranporth live app. Read `CURRENT_STATE_2026-09-16.md` and `PROJECT_CONTEXT.md` in `PerranporthAFCMens/Perranporth` first. Inspect the current live files before making any change. Perranporth is the live reference implementation.**
 
 Then:
-1. read this file
-2. fetch the current GitHub file(s) involved
-3. compare with the reported issue
+1. fetch the current GitHub file(s)
+2. compare with the reported issue
+3. check current backend source/deployment if backend behaviour is involved
 4. make the smallest safe change
-5. update GitHub directly where possible
-6. if Apps Script changes are required, provide one complete replacement `Code.gs` / HTML file and exact redeploy instructions
+5. test mobile behaviour
+6. redeploy Apps Script only when required
 
-Do not reconstruct the app from memory when live files are available.
+For productisation, use the Football PA Core handoff instead.
 
 ---
 
-Last updated: 14 Sep 2026
+Last updated: **16 September 2026**
