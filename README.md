@@ -1,104 +1,149 @@
 # Perranporth AFC Match Data App
 
-A lightweight web app for managing and reviewing Perranporth AFC first-team match data for the 2026/27 season.
+Live/reference implementation of the Perranporth AFC Men’s first-team management system for the 2026/27 season.
 
-The project started as a Google Sheets + Apps Script tool and is being progressively moved to a faster GitHub-hosted front end, while keeping Google Sheets as the underlying data store and Apps Script as the backend/API layer.
+This project is now also the **reference customer implementation for Football PA**. Productisation work is being developed separately in:
+
+`PerranporthAFCMens/Football-PA-Core`
+
+A frozen pre-productisation branch exists at:
+
+`snapshot-2026-09-16-pre-productisation`
+
+## Read this first
+
+For current continuation state, recent changes and fresh-chat handoff instructions, read:
+
+[`CURRENT_STATE_2026-09-16.md`](./CURRENT_STATE_2026-09-16.md)
+
+For deeper historic implementation rules and regression warnings, also read:
+
+[`PROJECT_CONTEXT.md`](./PROJECT_CONTEXT.md)
+
+Do **not** make significant changes from memory when the current live files are available.
 
 ## Live app
 
 **Control Centre:**
 https://PerranporthAFCMens.github.io/Perranporth/
 
-## What it does
+## Current architecture
 
-The app currently covers:
-
-- Match management and live event entry
-- Squads, lineups and substitutions
-- Goals, assists, zones and match events
-- Player minutes and appearances
-- Season dashboard and historic-season comparison
-- 3–2–1 player voting and Dick of the Day voting
-- Voting admin and results
-- Player Portal with individual season stats
-- Ghost Mode for management to view a player's portal read-only
-- Match subs tracking and payment confirmation
-- Fixture import/sync from the Perranporth AFC calendar
-
-## Architecture
-
-The project uses three main layers:
-
-### GitHub Pages
-
-Hosts most of the visible front end for speed and smoother mobile use.
-
-Current GitHub-hosted pages include:
-
-- `index.html` — Control Centre
-- `dashboard.html` — Season Dashboard
-- `subs.html` — Subs Tracker
-- `voting.html` — Voting Centre
-- `vote.html` — Player voting
-- `player.html` — Player Portal
-- `ghost.html` — Ghost Mode
-- `bridge-client.js` — browser-to-backend communication helper
-
-### Google Apps Script
-
-Handles backend logic, authentication, spreadsheet reads/writes and API responses.
-
-The Match Centre remains on Apps Script for now because it is tightly coupled to live match writes, clocks, substitutions and event entry.
-
-### Google Sheets
-
-Acts as the database for fixtures, matches, events, players, minutes, votes, subs and settings.
+- **GitHub Pages** — visible/mobile UI
+- **Google Apps Script** — API, business logic, sessions/authentication and writes
+- **Google Sheets** — live data store
 
 Main workbook:
 
 `Perranporth Game Data 2026-27`
 
+## Current user-facing areas
+
+- `index.html` — Control Centre
+- `match.html` — Match Centre
+- `voting.html` — Voting Centre
+- `vote.html` — Player voting
+- `subs.html` — Subs Tracker
+- `dashboard.html` — Season Dashboard
+- `minutes.html` — Player Minutes
+- `ghost.html` — Ghost Mode
+- `player.html` — Player Portal
+- `pins.html` — Player PIN tools
+- `admin-panel.html` — Management Admin Panel
+- `admin-reset.html` — Management PIN reset
+- `live.html` — public Live Spectator Board
+
+Shared browser/API support includes `bridge-live.js`, other bridge helpers and `button-feedback.js`.
+
+## What it currently does
+
+- Match management and live event entry
+- Squads, line-ups and substitutions
+- Match clock, pause/resume and finish-match flow
+- Goals, assists, cards, zones and event editing/deletion
+- Player minutes and appearances
+- Season dashboard and historic-season comparison
+- Cached-first + live-refresh dashboard loading
+- 3–2–1 player voting and Dick of the Day voting
+- Voting admin/results
+- Player Portal
+- Ghost Mode
+- Match subs tracking and payment confirmation
+- Public spectator live board
+- Individual management users
+- Granular management permissions
+- Welcome emails and PIN-reset emails through Resend
+- Management audit/activity logging
+- Session revocation / sign out everywhere
+
+## Authentication / email
+
+Perranporth still uses the current PIN/session model as the live reference implementation.
+
+Management transactional email is sent through Resend using the verified `footballpa.com` domain.
+
+Never commit or document:
+- raw PINs
+- PIN hashes
+- session tokens
+- reset tokens
+- API keys
+- sensitive player information
+
 ## Dashboard zone model
 
-The dashboard uses an 11-zone attacking half-pitch model.
+The dashboard uses an 11-zone **attacking half-pitch** model.
 
-Important layout rule:
+Critical visual rule:
+- Zones **1–5 must remain entirely inside the 18-yard box**
+- Zones 1–3 stack centrally
+- Zones 4 and 5 sit either side inside the box
+- the visual is a half-pitch, never a full-pitch replacement
 
-- Zones **1–5 are entirely inside the 18-yard box**
-- Zones **1–3 are stacked centrally**
-- Zones **4 and 5 sit either side of Zones 1–3**
-- The dashboard pitch is a **half-pitch**, not a full pitch
+See `PROJECT_CONTEXT.md` for the exact known-good geometry.
 
-The pitch markings are drawn with SVG so the penalty area, goal area, penalty mark and arc stay aligned with the zone layout.
+## Productisation boundary
 
-## Current development direction
+Perranporth is now the stable reference implementation.
 
-The project is being moved incrementally from Apps Script-hosted pages to GitHub Pages where it makes sense.
+Do not use live Perranporth data/deployments as a sandbox for Football PA architecture experiments.
 
-The goal is:
+New platform work should happen in:
 
-**GitHub Pages = user interface**  
-**Apps Script = backend/API/authentication**  
-**Google Sheets = data store**
+`PerranporthAFCMens/Football-PA-Core`
 
-This improves loading speed while preserving the existing spreadsheet-based workflow.
-
-## Project handover / technical context
-
-For detailed implementation notes, current deployment state, known issues, non-obvious rules and regression warnings, see:
-
-[`PROJECT_CONTEXT.md`](./PROJECT_CONTEXT.md)
-
-That file is the technical source of truth for continuing development safely.
+The intended Football PA direction includes:
+- Supabase Auth
+- multi-club / multi-team data model
+- configuration-driven club branding/team setup
+- granular memberships/permissions
+- professional onboarding
+- performance monitoring
+- payment-provider abstraction
 
 ## Important development notes
 
-- Do not put passwords, PINs or other secrets in this public repository.
-- Avoid replacing working files with older Apps Script-era versions without merging newer GitHub/API changes.
-- Preserve the 11-zone half-pitch layout described above.
-- The Subs Tracker, Player Portal, Ghost Mode and Voting pages depend on the Apps Script backend even though their visible UI is hosted on GitHub.
-- Changes should be tested on mobile as the app is used heavily from phones on matchdays.
+- Mobile use is the priority.
+- Inspect the current live files before changing architecture.
+- Do not revert working GitHub-hosted flows back to older Apps Script-era versions.
+- Do not assume `apps-script/code.gs` is newer than the currently deployed manually-pasted backend without checking.
+- Preserve the 11-zone half-pitch rules.
+- Preserve distinct player identities.
+- Trial/Test/Demo data must stay out of normal live views.
+- Ghost Mode remains read-only.
+- Do not put secrets in GitHub.
+
+## Fresh-chat continuation
+
+Use:
+
+> **Continue the Perranporth live app. Read `CURRENT_STATE_2026-09-16.md` and `PROJECT_CONTEXT.md` first, then inspect the current live files before changing anything.**
+
+For Football PA productisation instead:
+
+> **Continue Football PA productisation. Read `PRODUCTISATION_HANDOFF.md` in `PerranporthAFCMens/Football-PA-Core` first.**
 
 ## Status
 
-Active development — 2026/27 season.
+Active live reference implementation — 2026/27 season.  
+Football PA productisation started 16 September 2026.
