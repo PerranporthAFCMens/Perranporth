@@ -1,133 +1,107 @@
-# Match Centre 2 — Handoff
+# Match Centre 2 — Historical Handoff / Migration Complete
 
-> Purpose: continue the Match Centre migration safely in a fresh ChatGPT conversation. Read `PROJECT_CONTEXT.md` first, then this file.
+> **Status:** The Match Centre 2 migration described in the older version of this document has now been completed. The GitHub-hosted Match Centre is part of the current Perranporth app. This file is retained as historical context and to preserve the migration/test logic.
 
-## Goal
+For current development state, read first:
+- [`CURRENT_STATE_2026-09-16.md`](./CURRENT_STATE_2026-09-16.md)
+- [`PROJECT_CONTEXT.md`](./PROJECT_CONTEXT.md)
 
-Move the visible Match Centre from Google Apps Script hosting to GitHub Pages while keeping Apps Script as the backend/API and Google Sheets as the database.
+## What MC2 was
 
-Do **not** switch the live Match Centre until MC2 has been tested thoroughly and Adam explicitly approves the cutover.
+MC2 was the isolated migration path used to move the visible Match Centre away from Google Apps Script hosting and onto GitHub Pages while keeping Apps Script as the backend/API and Google Sheets as the live data store.
 
-## Safety model
+A separate test workbook and test deployment were used so the live Perranporth match system could not be damaged during migration.
 
-MC2 is a temporary parallel test environment, not a permanent second system.
+## Current state
 
-Current live system remains untouched:
-- Live Match Centre: Apps Script-hosted Admin
-- Live workbook: `Perranporth Game Data 2026-27`
-- Live spreadsheet ID: `1GZrxajK6vApjG8kQeYKMZS_Dff7lZ52GgE_XFTKveM0`
+The live GitHub repository now contains:
+- `match.html` — current GitHub-hosted Match Centre
+- `bridge-live.js` — current live RPC bridge
 
-MC2 test environment:
-- Test workbook: `Perranporth Match Centre 2 TEST Data`
-- Test spreadsheet ID: `186mFZ-xXRPNbQQLhkuMFuMVjk0zBhsoUPmc1oi2LWa4`
-- This workbook is a copy of the live workbook structure/data made specifically for isolated MC2 testing.
+The old description that the live Match Centre remains Apps Script-hosted is no longer current.
 
-## MC2 package
+Perranporth remains the live/reference implementation while Football PA productisation happens separately in:
+- `PerranporthAFCMens/Football-PA-Core`
 
-A complete MC2 test package has been saved in ChatGPT Library at:
-- `/Perranporth/Match_Centre_2_Test_Package.zip`
+A frozen pre-productisation branch exists at:
+- `snapshot-2026-09-16-pre-productisation`
 
-In a fresh chat, retrieve this exact Library file rather than asking Adam to upload it again.
+## Behaviour that came through MC2 and must remain protected
 
-Package contents:
-- `match2.html` — GitHub Match Centre 2 front end, migrated from the current Admin baseline
-- `bridge-mc2.js` — JSONP bridge for the MC2 test backend only
-- `Code_MC2_TEST.gs` — test Apps Script backend pointing only to the MC2 test workbook
-- `MC2_SETUP.md` — deployment instructions
-
-## GitHub state
-
-Repository:
-- `PerranporthAFCMens/Perranporth`
-
-`bridge-mc2.js` has already been added to GitHub.
-
-Commit:
-- `d071737166f5e7c03acac8abe82a8dc4acaaaf6a`
-
-The full `match2.html` has **not** yet been published to GitHub because the MC2 Apps Script `/exec` URL is still needed first.
-
-## What has already been done
-
-- Created isolated MC2 test workbook.
-- Generated MC2 backend from the current backend source.
-- Changed backend `SPREADSHEET_ID` to the MC2 test workbook.
-- Added Match Centre RPC functions to the GitHub JSONP whitelist.
-- Converted the current Match Centre Admin UI away from `google.script.run` to the GitHub bridge pattern.
-- Added separate MC2 browser storage keys (`pmd_admin_auth_mc2`, `pmd_session_mc2`).
-- Added a prominent `MATCH CENTRE 2 — TEST ENVIRONMENT — NOT LIVE DATA` banner.
-- Disabled in-admin Ghost Mode in MC2 so testing cannot cross into the live Player Portal.
-- Checked that all Match Centre server calls used by MC2 are present in the RPC whitelist.
-- Basic JavaScript syntax checks were run on the converted front end / bridge / backend.
-- The live Match Centre and live workbook were not modified as part of MC2 setup.
-
-## One manual step still required
-
-Adam needs to create/deploy the MC2 Apps Script web app from the test workbook because ChatGPT cannot currently create/deploy a new Apps Script web app directly.
-
-Steps:
-1. Open `Perranporth Match Centre 2 TEST Data`.
-2. Extensions → Apps Script.
-3. Replace the script contents with `Code_MC2_TEST.gs` from the Library package.
-4. Deploy → New deployment → Web app.
-5. Execute as: Me.
-6. Who has access: Anyone.
-7. Copy the resulting `/exec` URL.
-8. Give that URL to ChatGPT.
-
-## Next actions after Adam supplies the MC2 `/exec` URL
-
-1. Fetch current `bridge-mc2.js` from GitHub and update its placeholder backend URL.
-2. Commit that change and record the commit SHA.
-3. Publish the package's `match2.html` to GitHub as `match2.html`.
-4. Do **not** change the existing Control Centre Match Centre button yet.
-5. Test MC2 against the test workbook only.
-
-## Test checklist before live cutover
-
-At minimum test:
-- management login and saved-session restore
-- match selection and opening
-- creating a test match
+- management login/session restore
+- match selection/opening
+- creating trial/test matches
 - squad setup/editing
-- lineup builder, formation presets, drag/touch behaviour and save
+- line-up builder
+- formation presets
+- default 4-2-3-1
+- touch/mobile line-up behaviour
+- starting-line-up save
 - start match
-- clock start/pause/resume and reload/session restore
-- goals and conceded goals
-- assists / zones / touches / goal types
+- clock start/pause/resume
+- refresh/re-entry during an active match
+- goals/conceded goals
+- assists/zones/touches/goal types
 - yellow/red cards
 - substitutions
-- half-time behaviour and stoppage-time timestamp handling
-- second-half restart
-- full-time
-- reopening a completed match
-- event edit/delete where supported
-- past match view
+- half-time and second-half restart
+- full-time / finish-match flow
+- Share Result only after the match is finished
+- event editing and deletion
 - player management functions used inside Match Centre
-- no duplicate submissions on repeated taps
-- iPhone/mobile behaviour
-- refresh/re-entry during an active match
+- duplicate-submit protection
+- iPhone/mobile reliability
 
-Minutes rules must remain unchanged:
-- whole first half = 45 minutes even if HT is in stoppage time
-- whole match = 90 minutes even if FT is in stoppage time
+## Important current Match Centre rules
+
+### Minutes
+- a player who completes the whole first half gets **45 minutes**, even if half-time occurs in stoppage time
+- a player who completes the whole match gets **90 minutes**, even if full-time occurs in stoppage time
 - substitutions remain the source of truth for player minutes
+- stoppage-time event timestamps must be preserved
 
-## Cutover plan — only after successful testing and Adam approval
+### Events
+- scorer and assister cannot be the same player
+- No Assist remains valid
+- events may be edited/deleted where supported
+- repeated taps must not create duplicate events
 
-MC2 is intended to become the live Match Centre, not remain a second system.
+### Match controls
+- Half Time changes to End Game in the second half
+- Pause should feel immediate in the UI
+- Resume Live Match must restore the current live state
+- newly added players must remain available across Match Centre / line-up / substitutes views
 
-The controlled cutover should be:
-1. Point the proven GitHub Match Centre at the live backend/workbook using the chosen production backend arrangement.
-2. Verify production login/read/write with a controlled test.
-3. Change the Control Centre Match Centre link to the GitHub-hosted page.
-4. Keep the old Apps Script Admin deployment available temporarily as fallback.
-5. Retire the old Apps Script-hosted Match Centre only after real-world confidence.
+## Trial/test handling
 
-Do not perform the live switch merely because MC2 loads. Adam must approve the cutover explicitly.
+Trial/Test/Demo matches must remain isolated from normal production lists/statistics unless deliberately included for testing.
 
-## New-chat starter prompt
+Do not reintroduce old test fixtures into live dashboard, voting, subs or season statistics.
 
-Use:
+## Why this file remains
 
-> Continue the Perranporth app project. Read `PROJECT_CONTEXT.md` and `MC2_HANDOFF.md` in my GitHub repo first. Then retrieve `/Perranporth/Match_Centre_2_Test_Package.zip` from my ChatGPT Library. We are building Match Centre 2 as an isolated test environment before switching it live. Continue from the current handoff state; do not touch the live Match Centre or live workbook unless I explicitly approve the cutover.
+The MC2 process established an important development pattern that should continue into Football PA Core:
+
+1. isolate risky architectural changes from production data
+2. reproduce the working behaviour in a test environment
+3. test the full matchday path on mobile
+4. only cut over when the replacement is proven
+5. keep a rollback/reference point
+
+That same principle now applies to the Football PA Core migration.
+
+## Fresh-chat instruction
+
+Do **not** restart the old MC2 migration from this document.
+
+Use instead:
+
+> **Continue the Perranporth live app. Read `CURRENT_STATE_2026-09-16.md` and `PROJECT_CONTEXT.md` first, then inspect the current `match.html` and backend before making changes.**
+
+For productisation:
+
+> **Continue Football PA productisation. Read `PRODUCTISATION_HANDOFF.md` in `PerranporthAFCMens/Football-PA-Core` first.**
+
+---
+
+Last updated: **16 September 2026**
