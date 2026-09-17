@@ -12,7 +12,7 @@
     .app{max-width:780px;margin:0 auto;padding:max(10px,env(safe-area-inset-top)) 10px max(28px,env(safe-area-inset-bottom))}
     .card{background:var(--card);border:1px solid #e0ebf2;border-radius:20px;padding:16px;margin-bottom:12px;box-shadow:0 7px 22px #0b5ea812}
     .top{display:flex;align-items:center;gap:12px;background:linear-gradient(135deg,var(--navy),var(--blue));color:#fff;border:0}.badge{width:58px;height:58px;border-radius:50%;object-fit:cover;background:#fff;border:3px solid #fff}.club{font-size:22px;font-weight:900;color:#fff}.small{font-size:12px;color:var(--muted)}.top .small{color:#d9ecfa}
-    .livepill{margin-left:auto;border-radius:999px;padding:8px 12px;font-size:12px;font-weight:900;background:#dff6e8;color:#12652f;border:2px solid #fff}.livepill.ht{background:var(--amber2);color:#805700}.livepill.ft{background:#edf2f5;color:#42515c}.livepill.none{background:#edf2f5;color:#526572}
+    .topActions{margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}.livepill{border-radius:999px;padding:8px 12px;font-size:12px;font-weight:900;background:#dff6e8;color:#12652f;border:2px solid #fff}.livepill.ht{background:var(--amber2);color:#805700}.livepill.ft{background:#edf2f5;color:#42515c}.livepill.none{background:#edf2f5;color:#526572}.shareBtn{border:2px solid #fff;border-radius:999px;min-height:36px;padding:7px 12px;background:#ffffff18;color:#fff;font-size:12px;font-weight:900;cursor:pointer;white-space:nowrap}.shareBtn:active{transform:scale(.97)}
     .scoreCard{overflow:hidden;padding:0}.scoreHead{padding:12px 16px;text-align:center;background:linear-gradient(90deg,#eaf5fd,#f7fbfe);border-bottom:1px solid var(--line)}.competition{font-size:13px;font-weight:900;color:var(--blue);text-transform:uppercase;letter-spacing:.5px}
     .scoreBody{padding:20px 16px 16px;background:linear-gradient(180deg,#fff,#f7fbfe)}.scoregrid{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:10px;align-items:center;text-align:center}.team{font-size:18px;font-weight:900;color:var(--navy)}.score{font-size:48px;font-weight:900;color:var(--navy);white-space:nowrap;background:#edf7fd;padding:5px 14px;border-radius:16px;border:1px solid #cfe6f5}.minute{text-align:center;margin-top:10px;font-size:15px;font-weight:900;color:var(--green)}
     h2{font-size:18px;margin:0 0 12px;color:var(--navy)}
@@ -24,7 +24,7 @@
     .updated{text-align:center;font-size:11px;color:var(--muted);padding:4px 0 1px}.empty{text-align:center;padding:30px 12px;color:var(--muted)}
     .demo{background:linear-gradient(135deg,#fff5cf,#fffaf0);border-color:#ead182}.demoTitle{font-weight:900;color:#715300;margin-bottom:5px}.demoBtns{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:10px}.demoBtn{border:0;border-radius:11px;min-height:44px;padding:8px;font-size:12px;font-weight:900;background:#fff;border:1px solid #dcc46f;color:#5f4c00;box-shadow:0 2px 7px #7b5f0014}.demoBtn.interchange{background:var(--purple2);border-color:#cdbcf5;color:#553293}
     .legend{margin-top:10px;padding:10px 11px;border-radius:12px;background:#f7fafc;color:#5e7484;font-size:12px;line-height:1.45}.hidden{display:none!important}
-    @media(max-width:520px){.app{padding:7px}.card{border-radius:16px;padding:13px}.top{padding:13px}.badge{width:48px;height:48px}.club{font-size:18px}.score{font-size:38px;padding:5px 10px}.team{font-size:15px}.lineup{grid-template-columns:1fr}.scorers{gap:7px}.demoBtns{grid-template-columns:1fr 1fr}.scoreBody{padding:17px 11px 14px}}
+    @media(max-width:520px){.app{padding:7px}.card{border-radius:16px;padding:13px}.top{padding:13px;align-items:flex-start;flex-wrap:wrap}.badge{width:48px;height:48px}.club{font-size:18px}.topActions{width:100%;margin-left:0;justify-content:space-between}.score{font-size:38px;padding:5px 10px}.team{font-size:15px}.lineup{grid-template-columns:1fr}.scorers{gap:7px}.demoBtns{grid-template-columns:1fr 1fr}.scoreBody{padding:17px 11px 14px}}
   </style>
 </head>
 <body>
@@ -32,7 +32,10 @@
     <section class="card top">
       <img class="badge" src="https://images.weserv.nl/?url=www.perranporthafc.co.uk/wp-content/themes/sharkfin-1-4/images/perranporth-afc-large.jpg&output=png&w=180&h=180&fit=contain" alt="Perranporth AFC badge">
       <div><div class="club">Perranporth AFC</div><div class="small">Men's First Team • Live Match Centre</div></div>
-      <div id="statusPill" class="livepill">LIVE</div>
+      <div class="topActions">
+        <div id="statusPill" class="livepill">LIVE</div>
+        <button id="shareBtn" class="shareBtn" type="button" aria-label="Share live match centre">↗ Share</button>
+      </div>
     </section>
 
     <section class="card scoreCard">
@@ -105,6 +108,35 @@
 
   const $=id=>document.getElementById(id);
   const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  async function shareLive(){
+    const btn=$('shareBtn');
+    const url=new URL(location.href);
+    url.searchParams.delete('demo');
+    const shareUrl=url.toString();
+    const original=btn.textContent;
+    try{
+      if(navigator.share){
+        await navigator.share({title:'Perranporth AFC Live',text:'Follow Perranporth AFC live',url:shareUrl});
+        return;
+      }
+      if(navigator.clipboard&&window.isSecureContext){
+        await navigator.clipboard.writeText(shareUrl);
+        btn.textContent='✓ Link copied';
+      } else {
+        const input=document.createElement('textarea');
+        input.value=shareUrl; input.setAttribute('readonly',''); input.style.position='fixed'; input.style.opacity='0';
+        document.body.appendChild(input); input.select(); document.execCommand('copy'); input.remove();
+        btn.textContent='✓ Link copied';
+      }
+      setTimeout(()=>{btn.textContent=original;},1800);
+    }catch(err){
+      if(err&&err.name==='AbortError')return;
+      btn.textContent='Copy failed';
+      setTimeout(()=>{btn.textContent=original;},1800);
+    }
+  }
+  $('shareBtn').addEventListener('click',shareLive);
 
   function render(){
     $('competition').textContent=state.competition;
@@ -217,7 +249,6 @@
         }
       });
       state.everReturned=Array.from(returned);
-
       const perranHome=state.home==='Perranporth';
       state.homeGoals=[]; state.awayGoals=[];
       (d.events||[]).forEach(e=>{
