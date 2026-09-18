@@ -378,6 +378,15 @@ async function historicalTeamStatsDb(currentGameCount){
   return base;
 }
 
+function isTestMatch_(m){
+  if(!m)return false;
+  const source=low(m.source),competition=low(m.competition),opponent=low(m.opponent);
+  return source==="trial" || competition==="trial" ||
+    opponent.startsWith("test") ||
+    opponent.startsWith("testing") ||
+    opponent.startsWith("trial") ||
+    opponent.startsWith("voting test");
+}
 async function submitGhostTestVoteDb(token,playerName,vote){
   await auth(token,"read");
   const matchId=norm(await setting("Voting Open Match ID"));
@@ -401,7 +410,7 @@ async function buildPlayerPortalDb(playerName,ghostMode){
   let testMode=false;
   if(vote.matchId){
     const vm=await q("select source,competition,opponent from perranporth.matches where match_id=$1 limit 1",[vote.matchId]);
-    if(vm.length)testMode=low(vm[0].source)==="trial"||low(vm[0].competition)==="trial"||/^(test|testing|trial|voting test)\\b/i.test(norm(vm[0].opponent));
+    if(vm.length)testMode=isTestMatch_(vm[0]);
   }
   return{playerName:name,ghostMode:!!ghostMode,pinChosen:!!player.pin_chosen,badgeUrl:norm(await setting("Voting Badge URL")),season:norm(await setting("Season"))||"2026/27",historicalSeason:histSeason,historicalTeam:histTeam,my,team:{games:dash.matches.length,goals:dash.matches.reduce((a,m)=>a+int(m.ourScore),0),conceded:dash.matches.reduce((a,m)=>a+int(m.oppScore),0),cleanSheets:dash.matches.filter(m=>int(m.oppScore)===0).length,topScorers:topTotals(goalTotals),topAssists:topTotals(assistTotals),matches:dash.matches.slice().reverse().slice(0,5)},voting:{open:vote.open,matchId:vote.matchId,matchName:vote.matchName,players:vote.players,paymentIdentifier:vote.paymentIdentifier,paymentLink:vote.paymentLink,alreadyVoted:!!vr.length,testMode},subs:await playerSubsDb(name)};
 }
