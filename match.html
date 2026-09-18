@@ -2405,10 +2405,28 @@ function buildFaEventsText_(summary){
 
 async function showFaEvents(matchId){
   if(!matchId)return toast('No match selected');
+
   let summary;
-  try{summary=await call('getFullMatchSummary',PIN,matchId)}catch(e){return toast(e.message||'Could not load match events')}
-  const text=buildFaEventsText_(summary);
-  document.getElementById('faEventsText').value=text||'No match events recorded.';
+  try{
+    summary=await call('getFullMatchSummary',PIN,matchId);
+  }catch(e){
+    return toast(e.message||'Could not load match events');
+  }
+
+  let motm='Not decided yet';
+  try{
+    const voting=await call('getVotingSnapshot',PIN,matchId);
+    const winners=(voting.top3||[])
+      .filter(x=>Number(x.rank)===1)
+      .map(x=>x.player)
+      .filter(Boolean);
+    if(winners.length)motm=winners.join(' / ');
+  }catch(e){}
+
+  const eventsText=buildFaEventsText_(summary);
+  const text=(eventsText?eventsText+'\n\n':'')+'Man of the Match — '+motm;
+
+  document.getElementById('faEventsText').value=text;
   document.getElementById('faEventsModal').classList.remove('hidden');
 }
 
