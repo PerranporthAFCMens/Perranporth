@@ -27,7 +27,11 @@
     'getMatchClock','toggleMatchClock','resetMatchClock','enterHalfTime','startSecondHalf',
     'logEvent','updateEvent','deleteEvent','deleteLastEvent',
     'getSeasonStats','getPlayerMinutesData',
-    'getAllPlayersForAdmin','addPlayer','updatePlayer'
+    'getAllPlayersForAdmin','addPlayer','updatePlayer',
+    'getVotingAdminData','getVotingSnapshot','openVoting','closeVoting',
+    'getSubsTrackerData','setSubsStatus',
+    'getPlayerPinAdminData','resetPlayerPin',
+    'getGhostPlayerPortalDataDirect'
   ]);
   const SB_WRITE_ACTIONS=new Set([
     'createMatch','createTrialMatch','deleteTrialMatch',
@@ -35,7 +39,8 @@
     'startMatch','finishMatch','reopenMatch',
     'toggleMatchClock','resetMatchClock','enterHalfTime','startSecondHalf',
     'logEvent','updateEvent','deleteEvent','deleteLastEvent',
-    'addPlayer','updatePlayer'
+    'addPlayer','updatePlayer',
+    'openVoting','closeVoting','setSubsStatus','resetPlayerPin'
   ]);
   let supabaseHealthy=true;
   let supabaseWriteCommitted=false;
@@ -233,26 +238,6 @@
       const init=await callProtected_('getInitData',[token]);
       const subs=await callProtected_('getSubsTrackerData',[token]);
       return {init,subs};
-    }
-
-    if(action==='startMatch'){
-      const result=await callProtected_(action,args);
-
-      // Voting still lives on the existing Apps Script backend for now.
-      // When a real match starts successfully, open voting for that same match.
-      // Trial matches are deliberately excluded from public voting.
-      try{
-        const tokenInfo=unpackToken_(args[0]);
-        const matchId=String(args[1]||'');
-        const isTrial=/^TRIAL-/i.test(matchId) || String(result?.match?.competition||'').toLowerCase()==='trial';
-        if(!isTrial && tokenInfo.a){
-          await rawCall_('openVoting',[tokenInfo.a,matchId]);
-        }
-      }catch(err){
-        console.warn('Match started, but voting could not be opened automatically.',err);
-      }
-
-      return result;
     }
 
     return callProtected_(action,args);
