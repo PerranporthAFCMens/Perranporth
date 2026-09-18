@@ -131,11 +131,56 @@ async function minutesData(requestedSeason){
   const season=[...sm.values()].map(x=>({...x,averageMinutes:x.appearances?Math.round((x.minutes/x.appearances)*10)/10:0})).sort((a,b)=>b.minutes-a.minutes||b.appearances-a.appearances||a.player.localeCompare(b.player));
   return{seasonLabel:"2026/27",historical:false,season,matches:[...mm.values()]};
 }
+
+function dashboardEvent_(e){
+  const t=norm(e.event_type);
+  const conceded=t==="Conceded"||t==="Conceded Goal"||(t==="Goal"&&norm(e.team)==="Opposition");
+  const type=conceded?"Conceded Goal":t;
+  return {
+    minute:num(e.minute),displayMinute:num(e.minute),type,
+    team:conceded?"Opposition":(norm(e.team)||"Perranporth"),
+    player:conceded?"":norm(e.player),
+    secondaryPlayer:conceded?"":norm(e.secondary_player),
+    goalType:conceded?"":norm(e.goal_type),
+    touches:e.touches==null?null:int(e.touches),
+    goalZone:norm(e.goal_zone),
+    assistZone:conceded?"":norm(e.assist_zone)
+  };
+}
+async function currentDashboardData(){
+  const ms=await q("select * from perranporth.matches where status='Completed' and include is not false and lower(coalesce(source,''))<>'trial' and coalesce(opponent,'') not ilike 'test%' and coalesce(opponent,'') not ilike 'testing%' and coalesce(opponent,'') not ilike 'trial%' and coalesce(opponent,'') not ilike 'demo%' order by match_date asc,source_row asc");
+  const ev=await q("select * from perranporth.events order by minute,event_timestamp nulls last,event_id");
+  const by=new Map();
+  for(const x of ev){const id=String(x.match_id);if(!by.has(id))by.set(id,[]);by.get(id).push(dashboardEvent_(x));}
+  const matches=[];
+  for(const m of ms){
+    const events=by.get(String(m.match_id))||[];
+    if(!events.length)continue;
+    const sc=score(events);
+    matches.push({matchId:String(m.match_id),date:dateText(m.match_date),opponent:norm(m.opponent),venue:norm(m.venue),competition:norm(m.competition)||"Other",ourScore:sc.ours,oppScore:sc.opp,events});
+  }
+  const zones=(await q("select zone,description from perranporth.zones order by source_row")).map(z=>({zone:norm(z.zone),description:norm(z.description)}));
+  return{teamName:norm(await setting("Team Name"))||"Perranporth AFC",season:norm(await setting("Season"))||"2026/27",badgeUrl:norm(await setting("Voting Badge URL")),matches,zones,generatedAt:new Date().toLocaleString("en-GB",{timeZone:"Europe/London",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"})};
+}
+async function historicDashboardData(){
+  const ms=await q("select * from perranporth.historic_matches where season='2025/26' order by match_date asc,id asc");
+  const ev=await q("select * from perranporth.historic_events where season='2025/26' order by match_date,minute,source_row");
+  const by=new Map();
+  for(const x of ev){
+    if(x.event_type!=="Goal"&&x.event_type!=="Conceded")continue;
+    const k=norm(x.match_label);if(!by.has(k))by.set(k,[]);
+    by.get(k).push(dashboardEvent_({minute:x.minute,event_type:x.event_type==="Conceded"?"Conceded Goal":x.event_type,team:x.event_type==="Conceded"?"Opposition":"Perranporth",player:x.player,secondary_player:x.secondary_player,goal_type:x.goal_type,touches:x.touches,goal_zone:x.goal_zone,assist_zone:x.assist_zone}));
+  }
+  const matches=ms.map(m=>{const events=by.get(norm(m.match_label))||[],sc=score(events);return{matchId:"HIST-"+String(m.id),date:dateText(m.match_date),opponent:norm(m.match_label),venue:historicVenue_(m.match_label),competition:norm(m.competition)||"Other",ourScore:sc.ours,oppScore:sc.opp,events};});
+  return{teamName:norm(await setting("Team Name"))||"Perranporth AFC",season:"2025/26",badgeUrl:norm(await setting("Voting Badge URL")),matches,zones:[],generatedAt:new Date().toLocaleString("en-GB",{timeZone:"Europe/London",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"})};
+}
 async function handle(action,args){
   if(action==="createAdminSession")return createSession(args[0]);
   if(action==="verifyPin")return !!(await ctx(args[0]));
   if(action==="logoutAdminSession"){await q("delete from perranporth.admin_sessions where token=$1",[norm(args[0])]);return true;}
   if(action==="getPublicSpectatorData")return spectator();
+  if(action==="getPublicDashboardData")return currentDashboardData();
+  if(action==="getHistoricalDashboardData")return historicDashboardData();
   const actionPerm=(action==="getInitData"||action==="getMatches"||action==="getSeasonStats"||action==="getPlayerMinutesData")?"read":(action==="getAllPlayersForAdmin"||action==="addPlayer"||action==="updatePlayer")?"*":"match";
   await auth(args[0],actionPerm);
   if(action==="getInitData")return initData();
