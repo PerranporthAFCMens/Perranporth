@@ -228,6 +228,26 @@
       return {init,subs};
     }
 
+    if(action==='startMatch'){
+      const result=await callProtected_(action,args);
+
+      // Voting still lives on the existing Apps Script backend for now.
+      // When a real match starts successfully, open voting for that same match.
+      // Trial matches are deliberately excluded from public voting.
+      try{
+        const tokenInfo=unpackToken_(args[0]);
+        const matchId=String(args[1]||'');
+        const isTrial=/^TRIAL-/i.test(matchId) || String(result?.match?.competition||'').toLowerCase()==='trial';
+        if(!isTrial && tokenInfo.a){
+          await rawCall_('openVoting',[tokenInfo.a,matchId]);
+        }
+      }catch(err){
+        console.warn('Match started, but voting could not be opened automatically.',err);
+      }
+
+      return result;
+    }
+
     return callProtected_(action,args);
   };
 
