@@ -7,19 +7,13 @@
   const SB_URL='https://hennzggqaquevqgiucqn.supabase.co/functions/v1/perranporth-matchday';
   const SB_KEY='sb_publishable_3ibkYwM0fFdHgKdGFIN5cQ_BT_WudUW';
   const backendParam=new URLSearchParams(location.search).get('backend');
-  try{
-    if(backendParam==='apps')localStorage.setItem('pmd_force_apps','1');
-    if(backendParam==='supabase')localStorage.removeItem('pmd_force_apps');
-  }catch(e){}
-  let storedForceApps=false;
-  try{storedForceApps=localStorage.getItem('pmd_force_apps')==='1'}catch(e){}
-  const FORCE_APPS=backendParam==='apps'||storedForceApps;
+  const FORCE_APPS=backendParam==='apps';
   const CHANNEL='match_'+Date.now()+'_'+Math.random().toString(36).slice(2);
   let seq=0;
   const pending=new Map();
 
   const SB_MATCH_ACTIONS=new Set([
-    'getInitData','getMatches','createMatch','createTrialMatch','deleteTrialMatch',
+    'getInitData','getMatches','getPublicSpectatorData','createMatch','createTrialMatch','deleteTrialMatch',
     'getSquad','saveSquad','addPlayerToLiveSquad',
     'getLineup','saveLineup','setStartingLineup',
     'getMatchSummary','getFullMatchSummary',
