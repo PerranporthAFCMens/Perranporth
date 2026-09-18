@@ -18,7 +18,7 @@
     .tableWrap{overflow:auto;border:1px solid var(--line);border-radius:12px}table{width:100%;border-collapse:collapse;background:#fff;min-width:650px}th,td{padding:10px 9px;border-bottom:1px solid #edf1f4;text-align:left;font-size:13px}th{background:#f5f8fa;position:sticky;top:0}td.num,th.num{text-align:right}.player{font-weight:800}.pill{display:inline-block;padding:4px 8px;border-radius:999px;background:#edf4fb;font-size:11px;font-weight:800}.summary{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}.stat{background:#f5f8fa;border:1px solid var(--line);border-radius:12px;padding:12px;text-align:center}.stat b{display:block;font-size:22px;color:#123b5d}.toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:#17212b;color:#fff;padding:10px 15px;border-radius:20px;display:none;z-index:99}
     @media(max-width:620px){.wrap{padding:10px 8px 24px}.hero,.card{border-radius:14px;padding:13px}.badge{width:48px;height:48px}.summary{grid-template-columns:1fr 1fr}h1{font-size:20px}}
   </style>
-  <script src="./bridge-live.js"></script>
+  <script src="./bridge-live.js?v=20260918-auth1"></script>
   <script src="./button-feedback.js" defer></script>
 </head>
 <body>
@@ -60,11 +60,15 @@ function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&l
 function val(id){return document.getElementById(id).value}
 function tokenFromSession(x){return (x&&typeof x==='object'&&x.token)?String(x.token):String(x||'')}
 async function boot(){
-  let saved='';try{saved=localStorage.getItem('pmd_admin_auth')||''}catch(e){}
-  if(saved&&saved!=='[object Object]'){
-    try{if(await pmdCall('verifyPin',saved)){TOKEN=saved;await load();return}}catch(e){}
+  let saved=null;
+  try{saved=JSON.parse(localStorage.getItem('pmd_admin_auth')||'null')}catch(e){}
+  if(saved&&saved.token&&saved.expiresAt>Date.now()){
+    try{
+      if(await pmdCall('verifyPin',saved.token)){TOKEN=saved.token;await load();return}
+    }catch(e){}
+    try{localStorage.removeItem('pmd_admin_auth')}catch(e){}
   }
-  try{localStorage.removeItem('pmd_admin_auth')}catch(e){}
+  location.replace('./admin-panel.html?return=minutes.html');
 }
 async function login(){
   const pin=val('pin').trim();if(!pin)return toast('Enter PIN');
