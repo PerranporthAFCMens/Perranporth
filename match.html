@@ -541,7 +541,7 @@ async function logoutAdmin(){
 async function initAdmin(){
   DATA=await call('getInitData',PIN);
   document.getElementById('teamTitle').textContent=DATA.teamName;
-  document.getElementById('season').textContent=(DATA.season||'')+' · TEST DATA';
+  document.getElementById('season').textContent=(DATA.season||'');
   if(DATA.badgeUrl)document.getElementById('badge').src=DATA.badgeUrl;
   populatePlayers();
   populateMatches();
