@@ -29,6 +29,16 @@
     'getSeasonStats','getPlayerMinutesData',
     'getAllPlayersForAdmin','addPlayer','updatePlayer'
   ]);
+  const SB_WRITE_ACTIONS=new Set([
+    'createMatch','createTrialMatch','deleteTrialMatch',
+    'saveSquad','addPlayerToLiveSquad','saveLineup','setStartingLineup',
+    'startMatch','finishMatch','reopenMatch',
+    'toggleMatchClock','resetMatchClock','enterHalfTime','startSecondHalf',
+    'logEvent','updateEvent','deleteEvent','deleteLastEvent',
+    'addPlayer','updatePlayer'
+  ]);
+  let supabaseHealthy=true;
+  let supabaseWriteCommitted=false;
 
   function cleanup_(id){
     const p=pending.get(id);
@@ -151,10 +161,22 @@
     if(FORCE_APPS)return rawCall_(action,appsArgs_(args));
 
     const tokens=args.length?unpackToken_(args[0]):{a:'',s:''};
-    if(SB_MATCH_ACTIONS.has(action)&&tokens.s){
-      // Once a dual session is established, matchday writes are never blindly
-      // replayed to Apps Script. That prevents duplicate events after a lost response.
-      return sbCall_(action,sbArgs_(args),action.startsWith('get')?15000:20000);
+    if(SB_MATCH_ACTIONS.has(action)&&tokens.s&&supabaseHealthy){
+      const isWrite=SB_WRITE_ACTIONS.has(action);
+      try{
+        const result=await sbCall_(action,sbArgs_(args),isWrite?20000:15000);
+        if(isWrite)supabaseWriteCommitted=true;
+        return result;
+      }catch(err){
+        // Before the first Supabase write, a failed read safely trips the page
+        // back to Apps Script. After a Supabase write, never mix databases.
+        if(!isWrite&&!supabaseWriteCommitted){
+          supabaseHealthy=false;
+          console.warn('Supabase preflight read failed; using Apps Script for this page session.',err);
+          return rawCall_(action,appsArgs_(args));
+        }
+        throw err;
+      }
     }
     return rawCall_(action,appsArgs_(args));
   }
