@@ -174,6 +174,204 @@ async function historicDashboardData(){
   const matches=ms.map(m=>{const events=by.get(norm(m.match_label))||[],sc=score(events);return{matchId:"HIST-"+String(m.id),date:dateText(m.match_date),opponent:norm(m.match_label),venue:historicVenue_(m.match_label),competition:norm(m.competition)||"Other",ourScore:sc.ours,oppScore:sc.opp,events};});
   return{teamName:norm(await setting("Team Name"))||"Perranporth AFC",season:"2025/26",badgeUrl:norm(await setting("Voting Badge URL")),matches,zones:[],generatedAt:new Date().toLocaleString("en-GB",{timeZone:"Europe/London",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"})};
 }
+
+const normName=v=>low(v).replace(/\s+/g," ").trim();
+function matchLabelDb(m){
+  const v=low(m.venue);
+  const code=v==="away"?"A":v==="neutral"?"N":"H";
+  return norm(m.opponent)+" ("+code+")";
+}
+async function setSettingDb(name,value){
+  await q("insert into perranporth.settings(setting,value,raw_data) values($1,$2::jsonb,'{}'::jsonb) on conflict(setting) do update set value=excluded.value",[name,JSON.stringify(value)]);
+}
+async function paymentForMatch(matchId){
+  let r=await q("select payment_identifier,payment_link from perranporth.subs_payments where match_id=$1 limit 1",[matchId]);
+  if(r.length)return{identifier:norm(r[0].payment_identifier),link:norm(r[0].payment_link)};
+  const m=await matchRow(matchId);
+  const venue=low(m.venue)==="away"?"A":low(m.venue)==="neutral"?"N":"H";
+  const identifier=(norm(m.opponent).replace(/[^A-Za-z0-9]/g,"")+venue).slice(0,48);
+  const link="https://monzo.me/adamturner4/3.00?h=CmJ3lb&d="+encodeURIComponent(identifier)+"&account_type=personal";
+  await q("insert into perranporth.subs_payments(match_id,payment_identifier,payment_link) values($1,$2,$3) on conflict(match_id) do update set payment_identifier=excluded.payment_identifier,payment_link=excluded.payment_link,updated_at=now()",[matchId,identifier,link]);
+  return{identifier,link};
+}
+async function publicVotingData(){
+  const open=bool(await setting("Voting Open"));
+  const matchId=norm(await setting("Voting Open Match ID"));
+  let matchName=norm(await setting("Voting Match Name"));
+  if(matchId){try{matchName=matchLabelDb(await matchRow(matchId));}catch{}}
+  const ps=(await players(true)).map(x=>x.name);
+  const payment=matchId?await paymentForMatch(matchId):{identifier:"",link:""};
+  return{open,matchId,matchName,badgeUrl:norm(await setting("Voting Badge URL")),players:[...new Set(ps)],paymentIdentifier:payment.identifier||"",paymentLink:payment.link||""};
+}
+async function recordSubsResponseDb(matchId,playerName,value){
+  const v=low(value);
+  let raw="";
+  if(v==="yes"||v==="paid")raw="Paid";
+  else if(v==="no"||v==="not paid")raw="Not Paid";
+  else if(v==="n/a")raw="N/A";
+  if(!raw)return;
+  await q("insert into perranporth.subs_status(match_id,player,raw_status,confirmed) values($1,$2,$3,false) on conflict(match_id,player) do update set raw_status=excluded.raw_status,confirmed=false,updated_at=now()",[matchId,playerName,raw]);
+}
+async function submitVoteDb(vote,forcedName=""){
+  vote=vote||{};
+  if(!bool(await setting("Voting Open")))throw new Error("Voting is currently closed.");
+  const matchId=norm(await setting("Voting Open Match ID"));if(!matchId)throw new Error("No voting match is selected.");
+  const m=await matchRow(matchId),matchName=matchLabelDb(m),allowed=(await players(true)).map(x=>x.name);
+  if(forcedName)vote={...vote,name:forcedName};
+  for(const k of ["three","two","one","dick","reason","name","subs"])if(!norm(vote[k]))throw new Error("Please complete all required fields.");
+  if([vote.three,vote.two,vote.one,vote.dick].some(p=>norm(p).toUpperCase()==="N/A"))throw new Error("You must select a player for every voting category.");
+  if(new Set([vote.three,vote.two,vote.one]).size!==3)throw new Error("Your 3, 2 and 1 point selections must be three different players.");
+  for(const p of [vote.three,vote.two,vote.one,vote.dick])if(!allowed.includes(p))throw new Error("Invalid player selection.");
+  const voter=norm(vote.name),key=normName(voter);
+  const existing=await q("select id from perranporth.votes where match_id=$1 and lower(regexp_replace(trim(voter_name),'\\s+',' ','g'))=$2 order by id limit 1",[matchId,key]);
+  if(existing.length){
+    await q("update perranporth.votes set vote_timestamp=now(),match_name=$1,points_3=$2,points_2=$3,points_1=$4,dotd=$5,dotd_reason=$6,voter_name=$7,subs_paid=$8,source='Supabase web app' where id=$9",[matchName,norm(vote.three),norm(vote.two),norm(vote.one),norm(vote.dick),norm(vote.reason),voter,norm(vote.subs),existing[0].id]);
+  }else{
+    await q("insert into perranporth.votes(vote_timestamp,match_id,match_name,points_3,points_2,points_1,dotd,dotd_reason,voter_name,subs_paid,source,raw_data) values(now(),$1,$2,$3,$4,$5,$6,$7,$8,$9,'Supabase web app','{}'::jsonb)",[matchId,matchName,norm(vote.three),norm(vote.two),norm(vote.one),norm(vote.dick),norm(vote.reason),voter,norm(vote.subs)]);
+  }
+  await recordSubsResponseDb(matchId,voter,vote.subs);
+  return{ok:true,match:matchName,updated:!!existing.length};
+}
+async function votingAdminData(){
+  return{votingOpen:bool(await setting("Voting Open")),openMatchId:norm(await setting("Voting Open Match ID")),matchName:norm(await setting("Voting Match Name")),badgeUrl:norm(await setting("Voting Badge URL")),votingUrl:"https://PerranporthAFCMens.github.io/Perranporth/vote.html",matches:await matches(true),players:await players(true)};
+}
+async function openVotingDb(matchId){
+  const m=await matchRow(matchId);
+  await setSettingDb("Voting Open Match ID",matchId);
+  await setSettingDb("Voting Match Name",matchLabelDb(m));
+  await paymentForMatch(matchId);
+  await setSettingDb("Voting Open",true);
+  return votingAdminData();
+}
+async function closeVotingDb(){await setSettingDb("Voting Open",false);return votingAdminData();}
+async function votingSnapshotDb(matchId){
+  const m=await matchRow(matchId),targetName=matchLabelDb(m);
+  const rows=await q("select * from perranporth.votes where match_id=$1 or (coalesce(match_id,'')='' and lower(trim(match_name))=lower($2)) order by id",[matchId,targetName]);
+  const points={},counts={},dotd={},reasons={},voters=[];
+  const add=(name,pts)=>{name=norm(name);if(!name)return;points[name]=(points[name]||0)+pts;if(!counts[name])counts[name]={three:0,two:0,one:0};if(pts===3)counts[name].three++;if(pts===2)counts[name].two++;if(pts===1)counts[name].one++;};
+  for(const r of rows){add(r.points_3,3);add(r.points_2,2);add(r.points_1,1);const d=norm(r.dotd);if(d&&d!=="N/A"){dotd[d]=(dotd[d]||0)+1;const reason=norm(r.dotd_reason);if(reason){if(!reasons[d])reasons[d]=[];reasons[d].push(reason);}}const voter=norm(r.voter_name);if(voter)voters.push(voter);}
+  const ranked=Object.entries(points).map(([player,score])=>({player,score,three:counts[player]?.three||0,two:counts[player]?.two||0,one:counts[player]?.one||0})).sort((a,b)=>b.score-a.score||b.three-a.three||b.two-a.two||b.one-a.one||a.player.localeCompare(b.player));
+  let prev=null;for(let i=0;i<ranked.length;i++){const x=ranked[i],same=prev&&x.score===prev.score&&x.three===prev.three&&x.two===prev.two&&x.one===prev.one;x.rank=same?prev.rank:i+1;x.joint=!!same||(i+1<ranked.length&&ranked[i+1].score===x.score&&ranked[i+1].three===x.three&&ranked[i+1].two===x.two&&ranked[i+1].one===x.one);prev=x;}
+  const dotdRows=Object.entries(dotd).map(([player,votes])=>({player,votes,reasons:reasons[player]||[]})).sort((a,b)=>b.votes-a.votes||a.player.localeCompare(b.player)),max=dotdRows.length?dotdRows[0].votes:0;
+  const ps=await players(true),alias=new Map();for(const p of ps){alias.set(normName(p.name),p.name);if(p.alias)alias.set(normName(p.alias),p.name);}
+  const voted=new Set();for(const v of voters){const x=alias.get(normName(v));if(x)voted.add(x);}
+  return{matchId,matchName:targetName,ballots:rows.length,top3:ranked.filter(x=>x.rank<=3),dotd:dotdRows.filter(x=>x.votes>=Math.max(1,max-2)),dotdValidVotes:Object.values(dotd).reduce((a,b)=>a+b,0),voters,stillToVote:ps.map(p=>p.name).filter(n=>!voted.has(n))};
+}
+async function getPlayerSessionDb(token){
+  const t=norm(token);if(!t)return null;
+  await q("delete from perranporth.player_sessions where expires_at<=now()");
+  const r=await q("select player,expires_at from perranporth.player_sessions where token=$1 and expires_at>now() limit 1",[t]);
+  return r.length?{playerName:norm(r[0].player),expiresAt:new Date(r[0].expires_at).getTime()}:null;
+}
+async function portalPlayersDb(){
+  const r=await q("select player,voting_alias,pin_chosen from perranporth.players where active=true order by player");
+  return r.map(x=>({name:norm(x.player),alias:norm(x.voting_alias),pinChosen:!!x.pin_chosen}));
+}
+async function createPlayerSessionDb(playerName,pin){
+  const name=norm(playerName),p=norm(pin);
+  const r=await q("select player,active,portal_pin_hash,pin_chosen from perranporth.players where player=$1 and active=true limit 1",[name]);
+  if(!r.length||!r[0].portal_pin_hash||await hash(name+"|"+p)!==String(r[0].portal_pin_hash))throw new Error("Player name or PIN is incorrect.");
+  const token=crypto.randomUUID()+"-"+crypto.randomUUID(),exp=new Date(Date.now()+30*24*60*60*1000);
+  await q("insert into perranporth.player_sessions(token,player,expires_at) values($1,$2,$3)",[token,name,exp]);
+  const chosen=!!r[0].pin_chosen;return{token,playerName:name,expiresAt:exp.getTime(),pinChosen:chosen,mustChoosePin:!chosen};
+}
+async function createPlayerSetupSessionDb(playerName,dob){
+  const name=norm(playerName),supplied=norm(dob);
+  if(!name||!supplied)throw new Error("Select your name and enter your date of birth.");
+  const r=await q("select player,active,pin_chosen,date_of_birth from perranporth.players where player=$1 and active=true limit 1",[name]);
+  if(!r.length)throw new Error("Player not found.");
+  if(r[0].pin_chosen)throw new Error("You already have a PIN. Use the normal login above, or ask management to reset it.");
+  if(!r[0].date_of_birth)throw new Error("Your date of birth has not been added yet. Ask management to update your player record.");
+  const saved=String(r[0].date_of_birth).slice(0,10);if(saved!==supplied)throw new Error("That date of birth does not match our records.");
+  const token=crypto.randomUUID()+"-"+crypto.randomUUID(),exp=new Date(Date.now()+30*24*60*60*1000);
+  await q("insert into perranporth.player_sessions(token,player,expires_at) values($1,$2,$3)",[token,name,exp]);
+  return{token,playerName:name,expiresAt:exp.getTime(),pinChosen:false,mustChoosePin:true};
+}
+async function choosePlayerPinDb(token,newPin){
+  const s=await getPlayerSessionDb(token);if(!s)throw new Error("Your player session has expired. Please log in again.");
+  const p=norm(newPin);if(!/^\d{4}$/.test(p))throw new Error("Choose a 4-digit PIN.");
+  const h=await hash(s.playerName+"|"+p);
+  await q("update perranporth.players set portal_pin=$1,portal_pin_hash=$2,pin_chosen=true,pin_version=pin_version+1 where player=$3",[p,h,s.playerName]);
+  return{ok:true,playerName:s.playerName};
+}
+async function resetPlayerPinDb(playerName,tempPin){
+  const name=norm(playerName),p=norm(tempPin);if(!name)throw new Error("Select a player.");if(!/^\d{4}$/.test(p))throw new Error("Temporary PIN must be exactly 4 digits.");
+  const h=await hash(name+"|"+p),r=await q("update perranporth.players set portal_pin=$1,portal_pin_hash=$2,pin_chosen=false,pin_version=pin_version+1 where player=$3 returning player",[p,h,name]);if(!r.length)throw new Error("Player not found.");
+  await q("delete from perranporth.player_sessions where player=$1",[name]);
+  return{ok:true,playerName:name,pinChosen:false};
+}
+function subsDisplay(raw,confirmed){raw=norm(raw);if(raw==="Paid")return confirmed?"Confirmed Paid":"Claims Paid";if(raw==="Not Paid")return"Not Paid";if(raw==="N/A")return"N/A";return"Unconfirmed";}
+async function playedMatchIdsByPlayer(){
+  const r=await q("select p.match_id,p.player,p.starter,p.minutes_played,p.notes,m.status,m.source,m.opponent from perranporth.player_match_data p join perranporth.matches m on m.match_id=p.match_id where m.status='Completed' and lower(coalesce(m.source,''))<>'trial' and coalesce(m.opponent,'') not ilike 'test%' and coalesce(m.opponent,'') not ilike 'testing%' and coalesce(m.opponent,'') not ilike 'trial%'");
+  const map=new Map();for(const x of r){const used=!!x.starter||num(x.minutes_played)>0||low(x.notes).includes("used sub");if(!used)continue;if(!map.has(x.player))map.set(x.player,new Set());map.get(x.player).add(String(x.match_id));}return map;
+}
+async function playerSubsDb(playerName){
+  const name=norm(playerName),played=(await playedMatchIdsByPlayer()).get(name)||new Set();
+  const ms=(await q("select * from perranporth.matches where status='Completed' and lower(coalesce(source,''))<>'trial' and coalesce(opponent,'') not ilike 'test%' and coalesce(opponent,'') not ilike 'testing%' and coalesce(opponent,'') not ilike 'trial%' order by match_date desc")).filter(m=>played.has(String(m.match_id)));
+  const sr=await q("select match_id,raw_status,confirmed from perranporth.subs_status where lower(player)=lower($1)",[name]),sm=new Map(sr.map(x=>[String(x.match_id),x]));
+  const matchesOut=[];for(const m of ms){const x=sm.get(String(m.match_id)),pay=await paymentForMatch(String(m.match_id)),status=subsDisplay(x?.raw_status,!!x?.confirmed);matchesOut.push({matchId:String(m.match_id),date:dateText(m.match_date),match:matchLabelDb(m),rawStatus:norm(x?.raw_status),status,confirmed:!!x?.confirmed,paymentLink:pay.link});}
+  const unpaid=matchesOut.filter(x=>x.status==="Not Paid"||x.status==="Unconfirmed"),amountDue=unpaid.length*3,identifier=name.replace(/[^A-Za-z0-9]/g,"")+"Subs";
+  return{owed:unpaid.length,amountDue,totalPaymentLink:amountDue>0?"https://monzo.me/adamturner4/"+amountDue.toFixed(2)+"?h=CmJ3lb&d="+encodeURIComponent(identifier)+"&account_type=personal":"",unpaidMatches:unpaid,awaitingConfirmation:matchesOut.filter(x=>x.status==="Claims Paid").length,notPaid:matchesOut.filter(x=>x.status==="Not Paid").length,unconfirmed:matchesOut.filter(x=>x.status==="Unconfirmed").length,matches:matchesOut};
+}
+async function subsTrackerDb(){
+  const ps=await players(true),played=await playedMatchIdsByPlayer(),ms=await q("select * from perranporth.matches where status='Completed' and lower(coalesce(source,''))<>'trial' and coalesce(opponent,'') not ilike 'test%' and coalesce(opponent,'') not ilike 'testing%' and coalesce(opponent,'') not ilike 'trial%' order by match_date desc");
+  const statuses=await q("select * from perranporth.subs_status"),sm=new Map(statuses.map(x=>[String(x.match_id)+"|"+normName(x.player),x]));
+  const matchRows=[];for(const m of ms){const pay=await paymentForMatch(String(m.match_id));matchRows.push({matchId:String(m.match_id),date:dateText(m.match_date),match:matchLabelDb(m),paymentIdentifier:pay.identifier,paymentLink:pay.link});}
+  const result=[];
+  for(const p of ps){const set=played.get(p.name)||new Set(),rows=[];for(const m of ms){if(!set.has(String(m.match_id)))continue;const x=sm.get(String(m.match_id)+"|"+normName(p.name)),status=subsDisplay(x?.raw_status,!!x?.confirmed),pay=await paymentForMatch(String(m.match_id));rows.push({matchId:String(m.match_id),date:dateText(m.match_date),match:matchLabelDb(m),rawStatus:norm(x?.raw_status),status,confirmed:!!x?.confirmed,paymentLink:pay.link});}
+    const paymentDue=rows.filter(x=>x.status==="Not Paid"||x.status==="Unconfirmed").length,claimsPaid=rows.filter(x=>x.status==="Claims Paid").length,notPaid=rows.filter(x=>x.status==="Not Paid").length;
+    result.push({name:p.name,matches:rows,outstanding:paymentDue+claimsPaid,paymentDue,claimsPaid,notPaid,amountDue:paymentDue*3,unpaidMatches:rows.filter(x=>x.status==="Not Paid"||x.status==="Unconfirmed")});
+  }
+  const debtors=result.filter(p=>p.amountDue>0).map(p=>({name:p.name,outstanding:p.outstanding,paymentDue:p.paymentDue,amountDue:p.amountDue,matches:p.unpaidMatches,claimsMatches:p.matches.filter(m=>m.status==="Claims Paid")})).sort((a,b)=>b.amountDue-a.amountDue||a.name.localeCompare(b.name));
+  const pendingConfirmation=[];for(const p of result)for(const m of p.matches.filter(x=>x.status==="Claims Paid"))pendingConfirmation.push({player:p.name,matchId:m.matchId,date:m.date,match:m.match,paymentLink:m.paymentLink});
+  return{players:result,matches:matchRows,debtors,pendingConfirmation,totalOutstandingGames:result.reduce((n,p)=>n+p.outstanding,0),totalPaymentDueGames:result.reduce((n,p)=>n+p.paymentDue,0),totalOutstandingAmount:result.reduce((n,p)=>n+p.amountDue,0),totalClaimsPaid:result.reduce((n,p)=>n+p.claimsPaid,0),totalNotPaid:result.reduce((n,p)=>n+p.notPaid,0)};
+}
+async function setSubsStatusDb(matchId,playerName,status){
+  const id=norm(matchId),name=norm(playerName),s=norm(status);if(!id||!name)throw new Error("Match and player are required.");if(!["Confirmed Paid","Not Paid","N/A","Claims Paid",""].includes(s))throw new Error("Invalid subs status.");
+  await paymentForMatch(id);let raw=s,confirmed=false;if(s==="Confirmed Paid"){raw="Paid";confirmed=true}else if(s==="Claims Paid"){raw="Paid";confirmed=false}
+  await q("insert into perranporth.subs_status(match_id,player,raw_status,confirmed) values($1,$2,$3,$4) on conflict(match_id,player) do update set raw_status=excluded.raw_status,confirmed=excluded.confirmed,updated_at=now()",[id,name,raw,confirmed]);
+  return subsTrackerDb();
+}
+function histKey(label){
+  let s=low(label),venue="";const vm=[...s.matchAll(/\((h|a|n)\)/g)];if(vm.length)venue=vm[vm.length-1][1];
+  s=s.replace(/\((h|a|n)\)/g," ").replace(/\([^)]*(ge cup|gec|jnr cup|junior cup|jc)[^)]*\)/g," ").replace(/\b(ge cup|gec|jnr cup|junior cup|jc)\b/g," ").replace(/\b(first|second|third|1st|2nd|2nds|3rd|3rds)\b/g," ").replace(/[^a-z0-9]+/g," ").replace(/\s+/g," ").trim();
+  return venue+"|"+s;
+}
+async function historicalPlayerStatsDb(playerName,currentGameCount){
+  const wanted=normName(playerName)==="gav counter"?"gavin counter":normName(playerName);
+  const sr=await q("select * from perranporth.historic_player_season_stats where season='2025/26' and lower(player)=lower($1) limit 1",[wanted]);
+  if(!sr.length)return null;const x=sr[0];
+  const base={season:"2025/26",appearances:int(x.appearances),minutes:Math.round(num(x.total_minutes)),goals:int(x.goals),assists:int(x.assists),goalContributions:int(x.goals)+int(x.assists),full90s:int(x.full_90s),starts:0,cleanSheets:0};
+  const allMatches=await q("select * from perranporth.historic_matches where season='2025/26' order by match_date asc,id asc");
+  const mins=await q("select match_label,minutes from perranporth.historic_player_match_minutes where season='2025/26' and lower(player)=lower($1)",[wanted]),mm=new Map(mins.map(m=>[histKey(m.match_label),num(m.minutes)]));
+  base.cleanSheets=allMatches.filter(m=>(mm.get(histKey(m.match_label))||0)>0&&int(m.opp_score)===0).length;
+  const target=allMatches.slice(0,Math.max(0,int(currentGameCount))),keys=new Set(target.map(m=>histKey(m.match_label))),ev=await q("select * from perranporth.historic_events where season='2025/26' order by match_date,source_row");
+  let apps=0,minutes=0,full90s=0,goals=0,assists=0,clean=0;const appeared=new Set();
+  for(const m of target){const k=histKey(m.match_label),mn=mm.get(k)||0;if(mn>0){apps++;minutes+=mn;if(mn>=90)full90s++;appeared.add(k);if(int(m.opp_score)===0)clean++;}}
+  for(const e of ev){const k=histKey(e.match_label);if(!keys.has(k)||e.event_type!=="Goal")continue;if(normName(e.player)===wanted){goals++;if(!appeared.has(k)){apps++;appeared.add(k)}}if(normName(e.secondary_player)===wanted){assists++;if(!appeared.has(k)){apps++;appeared.add(k)}}}
+  base.sameStage={season:"2025/26",gamesCompared:target.length,appearances:apps,minutes:Math.round(minutes),goals,assists,goalContributions:goals+assists,full90s,cleanSheets:clean,starts:0};
+  return base;
+}
+function topTotals(obj){return Object.entries(obj).map(([player,total])=>({player,total})).sort((a,b)=>b.total-a.total||a.player.localeCompare(b.player)).slice(0,5)}
+async function historicalTeamStatsDb(currentGameCount){
+  const d=await historicDashboardData(),goals={},assists={};for(const m of d.matches)for(const e of m.events||[]){if(e.type==="Goal"&&low(e.team)!=="opposition"){if(e.player)goals[e.player]=(goals[e.player]||0)+1;if(e.secondaryPlayer)assists[e.secondaryPlayer]=(assists[e.secondaryPlayer]||0)+1;}}
+  const base={season:"2025/26",games:d.matches.length,goals:d.matches.reduce((n,m)=>n+int(m.ourScore),0),conceded:d.matches.reduce((n,m)=>n+int(m.oppScore),0),cleanSheets:d.matches.filter(m=>int(m.oppScore)===0).length,topScorers:topTotals(goals),topAssists:topTotals(assists),matches:d.matches.slice().reverse().slice(0,5)};
+  const ms=d.matches.slice(0,Math.max(0,int(currentGameCount))),g={},a={};for(const m of ms)for(const e of m.events||[]){if(e.type==="Goal"&&low(e.team)!=="opposition"){if(e.player)g[e.player]=(g[e.player]||0)+1;if(e.secondaryPlayer)a[e.secondaryPlayer]=(a[e.secondaryPlayer]||0)+1;}}
+  base.sameStage={season:"2025/26",games:ms.length,goals:ms.reduce((n,m)=>n+int(m.ourScore),0),conceded:ms.reduce((n,m)=>n+int(m.oppScore),0),cleanSheets:ms.filter(m=>int(m.oppScore)===0).length,topScorers:topTotals(g),topAssists:topTotals(a),matches:ms.slice().reverse().slice(0,5)};
+  return base;
+}
+async function buildPlayerPortalDb(playerName,ghostMode){
+  const name=norm(playerName),pRows=await q("select * from perranporth.players where player=$1 limit 1",[name]);if(!pRows.length)throw new Error("Player not found.");const player=pRows[0];
+  const pm=await q("select p.*,m.status,m.source,m.opponent from perranporth.player_match_data p join perranporth.matches m on m.match_id=p.match_id where p.player=$1 and lower(coalesce(m.source,''))<>'trial' and coalesce(m.opponent,'') not ilike 'test%' and coalesce(m.opponent,'') not ilike 'testing%' and coalesce(m.opponent,'') not ilike 'trial%'",[name]);
+  const my={appearances:0,starts:0,minutes:0,goals:0,assists:0,yellow:0,red:0,cleanSheets:0};const appeared=new Set();
+  for(const r of pm){const used=!!r.starter||num(r.minutes_played)>0||low(r.notes).includes("used sub");if(used){my.appearances++;appeared.add(String(r.match_id));}if(r.starter)my.starts++;my.minutes+=num(r.minutes_played);my.goals+=int(r.goals);my.assists+=int(r.assists);my.yellow+=int(r.yellow_cards);my.red+=int(r.red_cards);}
+  const dash=await currentDashboardData();my.cleanSheets=dash.matches.filter(m=>appeared.has(String(m.matchId))&&int(m.oppScore)===0).length;
+  const histSeason=await historicalPlayerStatsDb(name,dash.matches.length),histTeam=await historicalTeamStatsDb(dash.matches.length);
+  const goalTotals={},assistTotals={};for(const m of dash.matches)for(const e of m.events||[]){if(e.type==="Goal"&&low(e.team)!=="opposition"){if(e.player)goalTotals[e.player]=(goalTotals[e.player]||0)+1;if(e.secondaryPlayer)assistTotals[e.secondaryPlayer]=(assistTotals[e.secondaryPlayer]||0)+1;}}
+  const vote=await publicVotingData(),vr=vote.matchId?await q("select 1 from perranporth.votes where match_id=$1 and lower(regexp_replace(trim(voter_name),'\\s+',' ','g'))=$2 limit 1",[vote.matchId,normName(name)]):[];
+  return{playerName:name,ghostMode:!!ghostMode,pinChosen:!!player.pin_chosen,badgeUrl:norm(await setting("Voting Badge URL")),season:norm(await setting("Season"))||"2026/27",historicalSeason:histSeason,historicalTeam:histTeam,my,team:{games:dash.matches.length,goals:dash.matches.reduce((a,m)=>a+int(m.ourScore),0),conceded:dash.matches.reduce((a,m)=>a+int(m.oppScore),0),cleanSheets:dash.matches.filter(m=>int(m.oppScore)===0).length,topScorers:topTotals(goalTotals),topAssists:topTotals(assistTotals),matches:dash.matches.slice().reverse().slice(0,5)},voting:{open:vote.open,matchId:vote.matchId,matchName:vote.matchName,players:vote.players,paymentIdentifier:vote.paymentIdentifier,paymentLink:vote.paymentLink,alreadyVoted:!!vr.length},subs:await playerSubsDb(name)};
+}
+
 async function handle(action,args){
   if(action==="createAdminSession")return createSession(args[0]);
   if(action==="verifyPin")return !!(await ctx(args[0]));
@@ -181,7 +379,21 @@ async function handle(action,args){
   if(action==="getPublicSpectatorData")return spectator();
   if(action==="getPublicDashboardData")return currentDashboardData();
   if(action==="getHistoricalDashboardData")return historicDashboardData();
-  const actionPerm=(action==="getInitData"||action==="getMatches"||action==="getSeasonStats"||action==="getPlayerMinutesData")?"read":(action==="getAllPlayersForAdmin"||action==="addPlayer"||action==="updatePlayer")?"*":"match";
+  if(action==="getPublicVotingData")return publicVotingData();
+  if(action==="submitVote")return submitVoteDb(args[0]||{});
+  if(action==="getPortalPlayers")return portalPlayersDb();
+  if(action==="createPlayerSession")return createPlayerSessionDb(args[0],args[1]);
+  if(action==="createPlayerSetupSession")return createPlayerSetupSessionDb(args[0],args[1]);
+  if(action==="verifyPlayerSession"){const s=await getPlayerSessionDb(args[0]);return s?{ok:true,playerName:s.playerName,expiresAt:s.expiresAt}:{ok:false};}
+  if(action==="logoutPlayerSession"){await q("delete from perranporth.player_sessions where token=$1",[norm(args[0])]);return true;}
+  if(action==="choosePlayerPin")return choosePlayerPinDb(args[0],args[1]);
+  if(action==="getPlayerPortalData"){const s=await getPlayerSessionDb(args[0]);if(!s)throw new Error("Your player session has expired. Please log in again.");return buildPlayerPortalDb(s.playerName,false);}
+  if(action==="submitPortalVote"){const s=await getPlayerSessionDb(args[0]);if(!s)throw new Error("Your player session has expired. Please log in again.");return submitVoteDb(args[1]||{},s.playerName);}
+  const votingActions=new Set(["getVotingAdminData","getVotingSnapshot","openVoting","closeVoting"]);
+  const subsActions=new Set(["getSubsTrackerData","setSubsStatus"]);
+  const fullActions=new Set(["getAllPlayersForAdmin","addPlayer","updatePlayer","getPlayerPinAdminData","resetPlayerPin"]);
+  const readActions=new Set(["getInitData","getMatches","getSeasonStats","getPlayerMinutesData","getGhostPlayerPortalDataDirect"]);
+  const actionPerm=votingActions.has(action)?"voting":subsActions.has(action)?"subs":fullActions.has(action)?"*":readActions.has(action)?"read":"match";
   await auth(args[0],actionPerm);
   if(action==="getInitData")return initData();
   if(action==="getMatches")return matches(args[1]!==false);
@@ -190,6 +402,15 @@ async function handle(action,args){
   if(action==="updatePlayer")return updatePlayer(args[1],args[2]||{});
   if(action==="getSeasonStats")return seasonStats();
   if(action==="getPlayerMinutesData")return minutesData(args[1]);
+  if(action==="getVotingAdminData")return votingAdminData();
+  if(action==="openVoting")return openVotingDb(norm(args[1]));
+  if(action==="closeVoting")return closeVotingDb();
+  if(action==="getVotingSnapshot")return votingSnapshotDb(norm(args[1]));
+  if(action==="getSubsTrackerData")return subsTrackerDb();
+  if(action==="setSubsStatus")return setSubsStatusDb(args[1],args[2],args[3]);
+  if(action==="getPlayerPinAdminData"){const r=await q("select player,active,pin_chosen from perranporth.players order by active desc,player");return r.map(x=>({name:norm(x.player),active:!!x.active,pinChosen:!!x.pin_chosen}));}
+  if(action==="resetPlayerPin")return resetPlayerPinDb(args[1],args[2]);
+  if(action==="getGhostPlayerPortalDataDirect"){const name=norm(args[1]);const p=(await players(true)).find(x=>x.name===name);if(!p)throw new Error("Select an active player.");return buildPlayerPortalDb(name,true);}
   if(action==="getSquad")return squad(norm(args[1]));
   if(action==="getLineup")return lineup(norm(args[1]));
   if(action==="getMatchSummary"||action==="getFullMatchSummary")return summary(norm(args[1]));
@@ -201,7 +422,7 @@ async function handle(action,args){
   if(action==="addPlayerToLiveSquad"){const id=norm(args[1]),name=norm(args[2]),m=await matchRow(id);if(m.status!=="Live")throw new Error("Players can only be added this way while the match is live.");const p=(await players(true)).find(x=>x.name===name);if(!p)throw new Error("That player is not currently active in Manage Players.");const sq=await squad(id);if(!sq.length)throw new Error("No squad is saved for this match. All active players are already available for events.");if(sq.some(x=>x.player===name))return summary(id);await q("insert into perranporth.player_match_data(match_id,player,squad_status,starter,starting_position,shirt_no,minutes_played,goals,assists,yellow_cards,red_cards,notes,raw_data) values($1,$2,'Sub',false,$3,$4,0,0,0,0,0,'','{}'::jsonb)",[id,name,p.position,p.shirtNo]);return summary(id);}
   if(action==="saveLineup")return saveLineup(norm(args[1]),args[2]||{});
   if(action==="setStartingLineup")return starting(norm(args[1]),args[2]||{});
-  if(action==="startMatch"){const id=norm(args[1]),m=await matchRow(id);if(m.status==="Completed")throw new Error("This match has already been completed.");if(m.status!=="Live"){await q("update perranporth.matches set status='Live' where match_id=$1",[id]);const n=Date.now();await writeClock({...defClock(id),startedAt:n,runningSince:n});}return summary(id);}
+  if(action==="startMatch"){const id=norm(args[1]),m=await matchRow(id);if(m.status==="Completed")throw new Error("This match has already been completed.");if(m.status!=="Live"){await q("update perranporth.matches set status='Live' where match_id=$1",[id]);const n=Date.now();await writeClock({...defClock(id),startedAt:n,runningSince:n});if(low(m.source)!=="trial"&&low(m.competition)!=="trial")await openVotingDb(id);}return summary(id);}
   if(action==="toggleMatchClock"){const id=norm(args[1]);await notDone(id);let c=await rawClock(id);if(!c.startedAt){const n=Date.now();c={...defClock(id),startedAt:n,runningSince:n};}else{if(c.onBreak)throw new Error("Start the second half using the Half Time button.");if(c.runningSince){c.baseSeconds=elapsed(c);c.runningSince=null;}else c.runningSince=Date.now();}return pubClock(await writeClock(c));}
   if(action==="resetMatchClock"){const id=norm(args[1]);await notDone(id);return pubClock(await writeClock(defClock(id)));}
   if(action==="enterHalfTime"){const id=norm(args[1]);await notDone(id);let c=await rawClock(id);if(!c.startedAt)throw new Error("The match clock has not been started.");const e=elapsed(c);c.baseSeconds=e;c.runningSince=null;c.onBreak=true;c.half=1;c.firstHalfAddedMinutes=e<=2700?0:Math.max(0,Math.floor((e-2700)/60)+1);return pubClock(await writeClock(c));}
