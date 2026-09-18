@@ -8,7 +8,7 @@
   <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png">
   <link rel="icon" type="image/png" href="./apple-touch-icon.png">
   <link rel="manifest" href="./manifest.webmanifest">
-  <script src="./bridge-live.js?v=20260915-4"></script>
+  <script src="./bridge-live.js?v=20260918-auth1"></script>
   <script src="./button-feedback.js" defer></script>
   <style>
     :root{--blue:#0b5ea8;--dark:#123b5d;--danger:#c62828;--green:#23811c;--bg:#f3f6f8;--line:#d8e0e6;--text:#17212b;--muted:#71808e}
@@ -49,9 +49,41 @@ function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&l
 function readSaved(){try{const raw=localStorage.getItem(AUTH_KEY)||'';if(!raw)return null;try{const obj=JSON.parse(raw);if(obj&&obj.token)return obj}catch(e){}return {token:raw,expiresAt:Date.now()+86400000}}catch(e){return null}}
 function saveSession(s){try{localStorage.setItem(AUTH_KEY,JSON.stringify(s))}catch(e){}}
 function clearSession(){try{localStorage.removeItem(AUTH_KEY)}catch(e){}}
-async function boot(){renderAccessGrid();const s=readSaved();if(s&&s.token&&(!s.expiresAt||s.expiresAt>Date.now())){TOKEN=s.token;try{return await load()}catch(e){clearSession();TOKEN=''}}showLogin()}
+function returnTarget_(){
+  const raw=new URLSearchParams(location.search).get('return')||'';
+  const allowed=new Set(['match.html','voting.html','subs.html','pins.html','minutes.html','dashboard.html']);
+  return allowed.has(raw)?raw:'';
+}
+function goReturn_(){const t=returnTarget_();if(t)location.replace('./'+t)}
+async function boot(){
+  renderAccessGrid();
+  const s=readSaved();
+  if(s&&s.token&&(!s.expiresAt||s.expiresAt>Date.now())){
+    TOKEN=s.token;
+    try{
+      if(await pmdCall('verifyPin',TOKEN)){
+        if(returnTarget_()){goReturn_();return}
+        return await load();
+      }
+    }catch(e){}
+    clearSession();TOKEN='';
+  }
+  showLogin();
+}
 function showLogin(){document.getElementById('adminApp').classList.add('hidden');document.getElementById('loginWrap').classList.remove('hidden')}
-async function login(){const pin=document.getElementById('pinInput').value.trim();if(!pin)return toast('Enter PIN');const b=document.getElementById('loginBtn');b.disabled=true;b.textContent='Opening…';try{const s=await pmdCall('createAdminSession',pin);TOKEN=s.token;saveSession(s);await load()}catch(e){TOKEN='';toast(e.message||'Access denied');b.disabled=false;b.textContent='Open Admin Panel'}}
+async function login(){
+  const pin=document.getElementById('pinInput').value.trim();
+  if(!pin)return toast('Enter PIN');
+  const b=document.getElementById('loginBtn');b.disabled=true;b.textContent='Opening…';
+  try{
+    const s=await pmdCall('createAdminSession',pin);
+    TOKEN=s.token;saveSession(s);
+    if(returnTarget_()){goReturn_();return}
+    await load();
+  }catch(e){
+    TOKEN='';toast(e.message||'Access denied');b.disabled=false;b.textContent='Open Admin Panel';
+  }
+}
 async function logout(){const t=TOKEN;TOKEN='';clearSession();try{if(t)await pmdCall('logoutAdminSession',t)}catch(e){}showLogin()}
 async function load(){DATA=await pmdCall('getManagementAdminData',TOKEN);document.getElementById('loginWrap').classList.add('hidden');document.getElementById('adminApp').classList.remove('hidden');renderAccessGrid();renderPlayers();renderUsers();await loadAudit()}
 function items(){return (DATA&&DATA.accessItems&&DATA.accessItems.length)?DATA.accessItems:DEFAULT_ITEMS}
