@@ -6,7 +6,14 @@
   const APP_URL='https://script.google.com/macros/s/AKfycbyHHPOgGsImS9Kvr3SdZiKUGp3ZrbnOoJnIPUckm_Y9hH1K9b_j_Kgmw6UhzVMAyQ0q/exec';
   const SB_URL='https://hennzggqaquevqgiucqn.supabase.co/functions/v1/perranporth-matchday';
   const SB_KEY='sb_publishable_3ibkYwM0fFdHgKdGFIN5cQ_BT_WudUW';
-  const FORCE_APPS=new URLSearchParams(location.search).get('backend')==='apps';
+  const backendParam=new URLSearchParams(location.search).get('backend');
+  try{
+    if(backendParam==='apps')localStorage.setItem('pmd_force_apps','1');
+    if(backendParam==='supabase')localStorage.removeItem('pmd_force_apps');
+  }catch(e){}
+  let storedForceApps=false;
+  try{storedForceApps=localStorage.getItem('pmd_force_apps')==='1'}catch(e){}
+  const FORCE_APPS=backendParam==='apps'||storedForceApps;
   const CHANNEL='match_'+Date.now()+'_'+Math.random().toString(36).slice(2);
   let seq=0;
   const pending=new Map();
