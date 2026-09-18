@@ -8,10 +8,26 @@ const CORS = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Content-Type": "application/json; charset=utf-8"
 };
-const ROLE_PERMS = {
-  FULL_ADMIN:["*"], MATCHDAY:["match","read"], VOTING:["voting","read"],
-  SUBS:["subs","read"], READ_ONLY:["read"], CUSTOM:[]
+const ROLE_TILES = {
+  FULL_ADMIN:["*"],
+  MATCHDAY:["match","voting","dashboard","minutes"],
+  COACH_ANALYST:["dashboard","minutes","ghost"],
+  TREASURER:["subs"],
+  VOTING:["voting"],
+  SUBS:["subs"],
+  READ_ONLY:["dashboard","minutes"],
+  CUSTOM:[]
 };
+const ACCESS_ITEMS=[
+  {key:"match",label:"Match Centre",icon:"⚽"},
+  {key:"voting",label:"Voting Centre",icon:"🗳️"},
+  {key:"subs",label:"Subs Tracker",icon:"💷"},
+  {key:"dashboard",label:"Season Dashboard",icon:"📊"},
+  {key:"minutes",label:"Player Minutes",icon:"⏱️"},
+  {key:"ghost",label:"Ghost Mode",icon:"👻"},
+  {key:"player_pins",label:"Player PINs",icon:"🔐"},
+  {key:"admin",label:"Admin Panel",icon:"🛡️"}
+];
 const norm=(v)=>String(v??"").trim();
 const low=(v)=>norm(v).toLowerCase();
 const bool=(v)=>v===true||low(v)==="true";
@@ -25,6 +41,18 @@ function timeText(v){if(!v)return"";if(typeof v==="string"&&/^\d{2}:\d{2}/.test(
 async function setting(name){const r=await q("select value from perranporth.settings where setting=$1 limit 1",[name]);return r.length?r[0].value:"";}
 async function hash(s){const b=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(s));return Array.from(new Uint8Array(b)).map(x=>x.toString(16).padStart(2,"0")).join("");}
 function custom(v){if(Array.isArray(v))return v.map(String);const s=norm(v);if(!s)return[];try{const j=JSON.parse(s);if(Array.isArray(j))return j.map(String);}catch{}return s.split(",").map(x=>x.trim()).filter(Boolean);}
+function permissionsForRole_(role,customAccess){
+  if(role==="FULL_ADMIN")return["*"];
+  const tiles=role==="CUSTOM"?custom(customAccess):(ROLE_TILES[role]||[]);
+  const p=new Set();
+  if(tiles.includes("match"))p.add("match");
+  if(tiles.includes("voting"))p.add("voting");
+  if(tiles.includes("subs"))p.add("subs");
+  if(tiles.includes("player_pins"))p.add("player_pins");
+  if(tiles.includes("admin"))p.add("admin");
+  if(tiles.some(x=>["match","voting","subs","dashboard","minutes","ghost"].includes(x)))p.add("read");
+  return [...p];
+}
 async function createSession(pin){
   const p=norm(pin); if(!p)throw new Error("Incorrect PIN.");
   let source="",uid=null,pv=1;
@@ -47,12 +75,12 @@ async function ctx(token){
   if(s.source==="MAIN"||s.source==="TEMP")return{id:s.source,name:s.source==="MAIN"?"Main Admin":"Temporary Admin",role:"FULL_ADMIN",permissions:["*"]};
   const u=await q("select id,name,role,custom_access,pin_version,active from perranporth.management_access where id=$1 limit 1",[s.user_id]);
   if(!u.length||!u[0].active||int(u[0].pin_version,1)!==int(s.pin_version,1)){await q("delete from perranporth.admin_sessions where token=$1",[t]);return null;}
-  const role=norm(u[0].role)||"READ_ONLY";return{id:String(u[0].id),name:norm(u[0].name),role,permissions:role==="CUSTOM"?custom(u[0].custom_access):(ROLE_PERMS[role]||[])};
+  const role=norm(u[0].role)||"READ_ONLY";return{id:String(u[0].id),name:norm(u[0].name),role,permissions:permissionsForRole_(role,u[0].custom_access)};
 }
 async function auth(token,perm="match"){const c=await ctx(token);if(!c)throw new Error("Admin session expired. Please enter the PIN again.");if(!(c.permissions.includes("*")||c.permissions.includes(perm)))throw new Error("You do not have access to this area.");return c;}
 function matchObj(r){return{matchId:String(r.match_id||""),date:dateText(r.match_date),opponent:norm(r.opponent),venue:norm(r.venue),competition:norm(r.competition),kickoff:timeText(r.kickoff),status:norm(r.status),ourScore:r.our_score==null?"":Number(r.our_score),oppScore:r.opp_score==null?"":Number(r.opp_score),formation:norm(r.formation),captain:norm(r.captain),notes:norm(r.notes),include:r.include!==false,source:norm(r.source),calendarKey:norm(r.calendar_key),ground:norm(r.ground)};}
 async function matchRow(id){const r=await q("select * from perranporth.matches where match_id=$1 limit 1",[id]);if(!r.length)throw new Error("Match not found.");return r[0];}
-async function matches(includeCompleted=true){const r=await q("select * from perranporth.matches order by match_date asc nulls last,kickoff asc nulls last,source_row asc");return r.map(matchObj).filter(m=>m.matchId&&m.include&&(includeCompleted||m.status!=="Completed")&&low(m.source)!=="trial"&&!/pre[- ]?season/i.test(m.calendarKey+" "+m.notes)&&!(low(m.source)==="manual"&&/^(test|testing|trial)\b/i.test(m.opponent)));}
+async function matches(includeCompleted=true){const r=await q("select * from perranporth.matches order by match_date asc nulls last,kickoff asc nulls last,source_row asc");return r.map(matchObj).filter(m=>m.matchId&&m.include&&(includeCompleted||m.status!=="Completed")&&!isTestMatch_(m)&&!/pre[- ]?season/i.test(m.calendarKey+" "+m.notes));}
 async function players(activeOnly=true){const r=await q("select * from perranporth.players order by player");return r.filter(x=>!activeOnly||x.active).map(x=>({name:norm(x.player),active:!!x.active,position:norm(x.default_position),shirtNo:x.shirt_no??"",goalkeeper:!!x.goalkeeper,notes:norm(x.notes),alias:norm(x.voting_alias),dateOfBirth:x.date_of_birth?String(x.date_of_birth):""})).filter(x=>x.name);}
 async function events(id){const r=await q("select * from perranporth.events where match_id=$1 order by minute asc,event_timestamp asc nulls last,event_id asc",[id]);return r.map(x=>({eventId:String(x.event_id),matchId:String(x.match_id),minute:Number(x.minute||0),type:norm(x.event_type),team:norm(x.team),player:norm(x.player),secondaryPlayer:norm(x.secondary_player),goalType:norm(x.goal_type),touches:x.touches??"",zone:norm(x.goal_zone),originZone:norm(x.assist_zone),cardReason:norm(x.card_reason),notes:norm(x.notes),timestamp:x.event_timestamp?new Date(x.event_timestamp).toLocaleString("en-GB",{timeZone:"Europe/London"}):""}));}
 function score(ev){let ours=0,opp=0;for(const e of ev){if(e.type==="Goal"&&e.team!=="Opposition")ours++;if(e.type==="Conceded Goal"||(e.type==="Goal"&&e.team==="Opposition"))opp++;}return{ours,opp};}
@@ -66,14 +94,14 @@ async function writeClock(c){c.updatedAt=Date.now();await q("insert into perranp
 async function clock(id){return pubClock(await rawClock(id));}
 async function summary(id){const m=await matchRow(id),ev=await events(id),sc=score(ev);if(Number(m.our_score??0)!==sc.ours||Number(m.opp_score??0)!==sc.opp){await q("update perranporth.matches set our_score=$1,opp_score=$2 where match_id=$3",[sc.ours,sc.opp,id]);m.our_score=sc.ours;m.opp_score=sc.opp;}return{match:matchObj(m),events:ev,squad:await squad(id),clock:await clock(id)};}
 async function notDone(id){const m=await matchRow(id);if(m.status==="Completed")throw new Error("This match is already finished.");return m;}
-async function validEvent(e){if(!e||!e.matchId||!e.eventType)throw new Error("Incomplete event.");if(!Number.isFinite(Number(e.minute))||Number(e.minute)<=0)throw new Error("Enter a valid match minute.");const names=new Set((await players(true)).map(x=>x.name));if(e.eventType==="Goal"){if(!e.player||!names.has(e.player))throw new Error("Select an active player.");if(e.secondaryPlayer){if(!names.has(e.secondaryPlayer))throw new Error("Select an active assist player.");if(e.secondaryPlayer===e.player)throw new Error("The scorer and assist player cannot be the same.");}}if(e.eventType==="Yellow Card"||e.eventType==="Red Card"){if(!e.player||!names.has(e.player))throw new Error("Select the player who received the card.");}if(e.eventType==="Substitution"){if(!e.player||!e.secondaryPlayer)throw new Error("Select both the player off and the player on.");if(e.player===e.secondaryPlayer)throw new Error("The player off and player on cannot be the same.");if(!names.has(e.player)||!names.has(e.secondaryPlayer))throw new Error("Select active players for the substitution.");}}
+async function validEvent(e){if(!e||!e.matchId||!e.eventType)throw new Error("Incomplete event.");if(!Number.isFinite(Number(e.minute))||Number(e.minute)<=0)throw new Error("Enter a valid match minute.");const names=new Set((await players(true)).map(x=>x.name));if(e.eventType==="Goal"){if(!e.player||!names.has(e.player))throw new Error("Select an active player.");if(e.secondaryPlayer){if(!names.has(e.secondaryPlayer))throw new Error("Select an active assist player.");}}if(e.eventType==="Yellow Card"||e.eventType==="Red Card"){if(!e.player||!names.has(e.player))throw new Error("Select the player who received the card.");}if(e.eventType==="Substitution"){if(!e.player||!e.secondaryPlayer)throw new Error("Select both the player off and the player on.");if(e.player===e.secondaryPlayer)throw new Error("The player off and player on cannot be the same.");if(!names.has(e.player)||!names.has(e.secondaryPlayer))throw new Error("Select active players for the substitution.");}}
 async function refreshStats(id){const ev=await events(id),rows=await q("select id,player from perranporth.player_match_data where match_id=$1",[id]);for(const r of rows){const p=String(r.player),g=ev.filter(e=>e.type==="Goal"&&e.player===p&&e.team!=="Opposition").length,a=ev.filter(e=>e.type==="Goal"&&e.secondaryPlayer===p&&e.team!=="Opposition").length,y=ev.filter(e=>e.type==="Yellow Card"&&e.player===p).length,rd=ev.filter(e=>e.type==="Red Card"&&e.player===p).length;await q("update perranporth.player_match_data set goals=$1,assists=$2,yellow_cards=$3,red_cards=$4 where id=$5",[g,a,y,rd,r.id]);}}
 function minute(v){const n=Number(v||0);if(!Number.isFinite(n))return 0;const b=Math.floor(n),a=Math.round((n-b)*100);if(a>0&&(b===45||b===90))return b;return Math.max(0,Math.min(90,b));}
 async function recalc(id,snap){const rows=await q("select * from perranporth.player_match_data where match_id=$1 order by id",[id]);if(!rows.length)return;const ev=await events(id),end=snap&&snap.started?(int(snap.half,1)===1?Math.max(0,Math.min(45,Math.ceil(num(snap.elapsedSeconds)/60))):90):90,ord=[...ev].sort((a,b)=>minute(a.minute)-minute(b.minute));for(const r of rows){const p=String(r.player),starter=!!r.starter;let active=starter,on=starter?0:null,first=starter?0:null,off=null,mins=0;for(const e of ord){const m=minute(e.minute);if(e.type==="Substitution"){if(e.player===p&&active){mins+=Math.max(0,m-on);active=false;on=null;off=m;}if(e.secondaryPlayer===p&&!active){active=true;on=m;if(first===null)first=m;}}if(e.type==="Red Card"&&e.player===p&&active){mins+=Math.max(0,m-on);active=false;on=null;off=m;}}if(active&&on!==null)mins+=Math.max(0,end-on);const g=ev.filter(e=>e.type==="Goal"&&e.player===p&&e.team!=="Opposition").length,a=ev.filter(e=>e.type==="Goal"&&e.secondaryPlayer===p&&e.team!=="Opposition").length,y=ev.filter(e=>e.type==="Yellow Card"&&e.player===p).length,rd=ev.filter(e=>e.type==="Red Card"&&e.player===p).length;await q("update perranporth.player_match_data set minute_on=$1,minute_off=$2,minutes_played=$3,goals=$4,assists=$5,yellow_cards=$6,red_cards=$7 where id=$8",[first,off,mins,g,a,y,rd,r.id]);}}
 async function saveSquad(id,list){const m=await matchRow(id);if(m.status==="Live")throw new Error("The match is live. Edit the squad before kickoff or after full time.");await db.begin(async tx=>{await tx.unsafe("delete from perranporth.player_match_data where match_id=$1",[id]);for(const p of list||[]){const st=p.status==="Starter";await tx.unsafe("insert into perranporth.player_match_data(match_id,player,squad_status,starter,starting_position,shirt_no,minute_on,minutes_played,goals,assists,yellow_cards,red_cards,notes,raw_data) values($1,$2,$3,$4,$5,$6,$7,0,0,0,0,0,'','{}'::jsonb)",[id,norm(p.player),norm(p.status),st,norm(p.position),norm(p.shirtNo),st?0:null]);}});if(m.status==="Completed")await recalc(id,await clock(id));return summary(id);}
 async function saveLineup(id,payload){const m=await matchRow(id),active=new Set((await players(true)).map(x=>x.name)),seen=new Set(),formation=norm(payload?.formation)||"Custom";const ps=(payload?.positions||[]).map((p,i)=>({player:norm(p.player),area:norm(p.area),x:num(p.x),y:num(p.y),order:int(p.order,i+1)})).filter(p=>{if(!p.player||seen.has(p.player)||!active.has(p.player)||(p.area!=="Pitch"&&p.area!=="Bench"))return false;seen.add(p.player);return true;});await db.begin(async tx=>{await tx.unsafe("delete from perranporth.lineup_positions where match_id=$1",[id]);for(const p of ps)await tx.unsafe("insert into perranporth.lineup_positions(match_id,player,area,x,y,sort_order,formation,updated_at,raw_data) values($1,$2,$3,$4,$5,$6,$7,now(),'{}'::jsonb)",[id,p.player,p.area,p.area==="Pitch"?Math.max(0,Math.min(100,p.x)):null,p.area==="Pitch"?Math.max(0,Math.min(100,p.y)):null,p.order,formation]);});if(m.status!=="Live")await saveSquad(id,ps.map(p=>({player:p.player,status:p.area==="Pitch"?"Starter":"Sub",position:"",shirtNo:""})));if(formation!=="Custom")await q("update perranporth.matches set formation=$1 where match_id=$2",[formation,id]);return lineup(id);}
 async function starting(id,payload){const m=await matchRow(id);if(m.status==="Completed")throw new Error("The match is already finished.");const ps=Array.isArray(payload?.positions)?payload.positions:[],pitch=ps.filter(p=>p?.area==="Pitch"&&p.player).map(p=>norm(p.player)),bench=ps.filter(p=>p?.area==="Bench"&&p.player).map(p=>norm(p.player)),up=[...new Set(pitch)],ub=[...new Set(bench.filter(n=>!up.includes(n)))];if(!up.length)throw new Error("Put the starting players on the pitch first.");if(up.length>11)throw new Error("A starting lineup cannot have more than 11 players.");const old=await squad(id),oldMap=new Map(old.map(p=>[p.player,p])),pl=await players(true),meta=new Map(pl.map(p=>[p.name,p]));await db.begin(async tx=>{await tx.unsafe("delete from perranporth.player_match_data where match_id=$1",[id]);for(const pair of [...up.map(n=>[n,"Starter"]),...ub.map(n=>[n,"Sub"])]){const name=pair[0],status=pair[1],o=oldMap.get(name)||{},mt=meta.get(name)||{},st=status==="Starter";await tx.unsafe("insert into perranporth.player_match_data(match_id,player,squad_status,starter,starting_position,shirt_no,minute_on,minute_off,minutes_played,goals,assists,yellow_cards,red_cards,notes,raw_data) values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'{}'::jsonb)",[id,name,status,st,o.position||mt.position||"",o.shirtNo||mt.shirtNo||"",st?0:null,o.minuteOff===""?null:o.minuteOff??null,num(o.minutesPlayed),int(o.goals),int(o.assists),int(o.yellows),int(o.reds),norm(o.notes)]);}});if(payload)await saveLineup(id,payload);return summary(id);}
-async function spectator(){const live=await q("select * from perranporth.matches where lower(status)='live' and not (lower(coalesce(source,''))='manual' and coalesce(opponent,'') ~* '^(test|testing|trial)\\b') order by match_date desc nulls last,source_row desc nulls last limit 1");if(!live.length)return{live:false,generatedAt:new Date().toLocaleString("en-GB",{timeZone:"Europe/London"})};const m=live[0],id=String(m.match_id),ev=await events(id),sc=score(ev),cl=await clock(id),sq=await squad(id),li=await lineup(id),on=new Set(sq.filter(p=>p.status==="Starter"||p.starter).map(p=>p.player));for(const e of ev){if(e.type==="Substitution"){if(e.player)on.delete(e.player);if(e.secondaryPlayer)on.add(e.secondaryPlayer);}if(e.type==="Red Card"&&e.player)on.delete(e.player);}const red=new Set(ev.filter(e=>e.type==="Red Card"&&e.player).map(e=>e.player)),all=sq.filter(p=>p.status==="Starter"||p.status==="Sub").map(p=>p.player),pm=new Map(li.positions.map(p=>[p.player,p])),home=low(m.venue)!=="away";return{live:true,match:{matchId:id,date:dateText(m.match_date),kickoff:timeText(m.kickoff),opponent:norm(m.opponent),venue:norm(m.venue),competition:norm(m.competition),formation:li.formation||norm(m.formation)},homeTeam:home?"Perranporth":norm(m.opponent),awayTeam:home?norm(m.opponent):"Perranporth",homeScore:home?sc.ours:sc.opp,awayScore:home?sc.opp:sc.ours,clock:cl,onPitch:[...on].map(name=>{const p=pm.get(name);return{name,x:p?num(p.x):0,y:p?num(p.y):0,order:p?int(p.order):0};}),available:all.filter(p=>!on.has(p)&&!red.has(p)),dismissed:all.filter(p=>red.has(p)),events:ev.map(e=>({minute:e.minute,type:e.type,team:e.team,player:e.player,secondaryPlayer:e.secondaryPlayer,goalType:e.goalType,cardReason:e.cardReason})),generatedAt:new Date().toLocaleString("en-GB",{timeZone:"Europe/London"})};}
+async function spectator(){const live=await q("select * from perranporth.matches where lower(status)='live' and lower(coalesce(source,''))<>'trial' and lower(coalesce(competition,''))<>'trial' and lower(coalesce(opponent,'')) not like 'test%' and lower(coalesce(opponent,'')) not like 'testing%' and lower(coalesce(opponent,'')) not like 'trial%' and lower(coalesce(opponent,'')) not like 'voting test%' and lower(coalesce(opponent,'')) not like 'demo%' order by match_date desc nulls last,source_row desc nulls last limit 1");if(!live.length)return{live:false,generatedAt:new Date().toLocaleString("en-GB",{timeZone:"Europe/London"})};const m=live[0],id=String(m.match_id),ev=await events(id),sc=score(ev),cl=await clock(id),sq=await squad(id),li=await lineup(id),on=new Set(sq.filter(p=>p.status==="Starter"||p.starter).map(p=>p.player));for(const e of ev){if(e.type==="Substitution"){if(e.player)on.delete(e.player);if(e.secondaryPlayer)on.add(e.secondaryPlayer);}if(e.type==="Red Card"&&e.player)on.delete(e.player);}const red=new Set(ev.filter(e=>e.type==="Red Card"&&e.player).map(e=>e.player)),all=sq.filter(p=>p.status==="Starter"||p.status==="Sub").map(p=>p.player),pm=new Map(li.positions.map(p=>[p.player,p])),home=low(m.venue)!=="away";return{live:true,match:{matchId:id,date:dateText(m.match_date),kickoff:timeText(m.kickoff),opponent:norm(m.opponent),venue:norm(m.venue),competition:norm(m.competition),formation:li.formation||norm(m.formation)},homeTeam:home?"Perranporth":norm(m.opponent),awayTeam:home?norm(m.opponent):"Perranporth",homeScore:home?sc.ours:sc.opp,awayScore:home?sc.opp:sc.ours,clock:cl,onPitch:[...on].map(name=>{const p=pm.get(name);return{name,x:p?num(p.x):0,y:p?num(p.y):0,order:p?int(p.order):0};}),available:all.filter(p=>!on.has(p)&&!red.has(p)),dismissed:all.filter(p=>red.has(p)),events:ev.map(e=>({minute:e.minute,type:e.type,team:e.team,player:e.player,secondaryPlayer:e.secondaryPlayer,goalType:e.goalType,cardReason:e.cardReason})),generatedAt:new Date().toLocaleString("en-GB",{timeZone:"Europe/London"})};}
 
 async function initData(){
   return {teamName:norm(await setting("Team Name"))||"Perranporth AFC",season:norm(await setting("Season"))||"2026/27",badgeUrl:norm(await setting("Voting Badge URL")),players:await players(true),allPlayers:await allPlayers(),matches:await matches(true)};
@@ -97,7 +125,7 @@ async function updatePlayer(originalName,data){
   return{name,active:data.active!==false,position:norm(data.position),shirtNo:norm(data.shirtNo),goalkeeper:!!data.goalkeeper,notes:norm(data.notes),alias:norm(data.alias)};
 }
 async function seasonStats(){
-  const r=await q("select p.player,p.squad_status,p.minutes_played,p.goals,p.assists,p.yellow_cards,p.red_cards from perranporth.player_match_data p join perranporth.matches m on m.match_id=p.match_id where m.status='Completed' and lower(coalesce(m.source,''))<>'trial' and coalesce(m.opponent,'') not ilike 'test%' and coalesce(m.opponent,'') not ilike 'testing%' and coalesce(m.opponent,'') not ilike 'trial%'");
+  const r=await q("select p.player,p.squad_status,p.minutes_played,p.goals,p.assists,p.yellow_cards,p.red_cards from perranporth.player_match_data p join perranporth.matches m on m.match_id=p.match_id where m.status='Completed' and lower(coalesce(m.source,''))<>'trial' and coalesce(m.opponent,'') not ilike 'test%' and coalesce(m.opponent,'') not ilike 'testing%' and coalesce(m.opponent,'') not ilike 'trial%' and coalesce(m.opponent,'') not ilike 'voting test%' and coalesce(m.opponent,'') not ilike 'demo%'");
   const map=new Map();for(const x of r){const name=norm(x.player);if(!name)continue;if(!map.has(name))map.set(name,{player:name,appearances:0,goals:0,assists:0,minutes:0,yellows:0,reds:0});const z=map.get(name);if(norm(x.squad_status)!=="Unused")z.appearances++;z.minutes+=num(x.minutes_played);z.goals+=int(x.goals);z.assists+=int(x.assists);z.yellows+=int(x.yellow_cards);z.reds+=int(x.red_cards);}return[...map.values()].sort((a,b)=>b.goals-a.goals||b.assists-a.assists||b.minutes-a.minutes||a.player.localeCompare(b.player));
 }
 function historicVenue_(label){
@@ -125,7 +153,7 @@ async function historicMinutesData(){
 async function minutesData(requestedSeason){
   const wanted=norm(requestedSeason)||"2026/27";
   if(wanted==="2025/26")return historicMinutesData();
-  const r=await q("select p.*,m.match_date,m.opponent,m.venue,m.competition from perranporth.player_match_data p join perranporth.matches m on m.match_id=p.match_id where m.status='Completed' and lower(coalesce(m.source,''))<>'trial' and coalesce(m.opponent,'') not ilike 'test%' and coalesce(m.opponent,'') not ilike 'testing%' and coalesce(m.opponent,'') not ilike 'trial%' order by m.match_date desc,p.player");
+  const r=await q("select p.*,m.match_date,m.opponent,m.venue,m.competition from perranporth.player_match_data p join perranporth.matches m on m.match_id=p.match_id where m.status='Completed' and lower(coalesce(m.source,''))<>'trial' and coalesce(m.opponent,'') not ilike 'test%' and coalesce(m.opponent,'') not ilike 'testing%' and coalesce(m.opponent,'') not ilike 'trial%' and coalesce(m.opponent,'') not ilike 'voting test%' and coalesce(m.opponent,'') not ilike 'demo%' order by m.match_date desc,p.player");
   const sm=new Map(),mm=new Map();
   for(const x of r){const player=norm(x.player),status=norm(x.squad_status),appeared=status!=="Unused"&&status!=="Not in Squad",starter=!!x.starter;if(!sm.has(player))sm.set(player,{player,starts:0,subApps:0,appearances:0,minutes:0});const s=sm.get(player);if(appeared){s.appearances++;if(starter)s.starts++;else s.subApps++;}s.minutes+=num(x.minutes_played);const id=String(x.match_id);if(!mm.has(id))mm.set(id,{matchId:id,date:dateText(x.match_date),opponent:norm(x.opponent),venue:norm(x.venue),competition:norm(x.competition),historical:false,players:[]});mm.get(id).players.push({player,status,starter,minuteOn:x.minute_on??"",minuteOff:x.minute_off??"",minutesPlayed:num(x.minutes_played)});}
   const season=[...sm.values()].map(x=>({...x,averageMinutes:x.appearances?Math.round((x.minutes/x.appearances)*10)/10:0})).sort((a,b)=>b.minutes-a.minutes||b.appearances-a.appearances||a.player.localeCompare(b.player));
@@ -148,7 +176,7 @@ function dashboardEvent_(e){
   };
 }
 async function currentDashboardData(){
-  const ms=await q("select * from perranporth.matches where status='Completed' and include is not false and lower(coalesce(source,''))<>'trial' and coalesce(opponent,'') not ilike 'test%' and coalesce(opponent,'') not ilike 'testing%' and coalesce(opponent,'') not ilike 'trial%' and coalesce(opponent,'') not ilike 'demo%' order by match_date asc,source_row asc");
+  const ms=await q("select * from perranporth.matches where status='Completed' and include is not false and lower(coalesce(source,''))<>'trial' and coalesce(opponent,'') not ilike 'test%' and coalesce(opponent,'') not ilike 'testing%' and coalesce(opponent,'') not ilike 'trial%' and coalesce(opponent,'') not ilike 'voting test%' and coalesce(opponent,'') not ilike 'demo%' order by match_date asc,source_row asc");
   const ev=await q("select * from perranporth.events order by minute,event_timestamp nulls last,event_id");
   const by=new Map();
   for(const x of ev){const id=String(x.match_id);if(!by.has(id))by.set(id,[]);by.get(id).push(dashboardEvent_(x));}
@@ -319,7 +347,7 @@ async function resetPlayerPinDb(playerName,tempPin){
 }
 function subsDisplay(raw,confirmed){raw=norm(raw);if(raw==="Paid")return confirmed?"Confirmed Paid":"Claims Paid";if(raw==="Not Paid")return"Not Paid";if(raw==="N/A")return"N/A";return"Unconfirmed";}
 async function playedMatchIdsByPlayer(){
-  const r=await q("select p.match_id,p.player,p.starter,p.minutes_played,p.notes,m.status,m.source,m.opponent from perranporth.player_match_data p join perranporth.matches m on m.match_id=p.match_id where m.status='Completed' and lower(coalesce(m.source,''))<>'trial' and coalesce(m.opponent,'') not ilike 'test%' and coalesce(m.opponent,'') not ilike 'testing%' and coalesce(m.opponent,'') not ilike 'trial%'");
+  const r=await q("select p.match_id,p.player,p.starter,p.minutes_played,p.notes,m.status,m.source,m.opponent from perranporth.player_match_data p join perranporth.matches m on m.match_id=p.match_id where m.status='Completed' and lower(coalesce(m.source,''))<>'trial' and coalesce(m.opponent,'') not ilike 'test%' and coalesce(m.opponent,'') not ilike 'testing%' and coalesce(m.opponent,'') not ilike 'trial%' and coalesce(m.opponent,'') not ilike 'voting test%' and coalesce(m.opponent,'') not ilike 'demo%'");
   const map=new Map();for(const x of r){const used=!!x.starter||num(x.minutes_played)>0||low(x.notes).includes("used sub");if(!used)continue;if(!map.has(x.player))map.set(x.player,new Set());map.get(x.player).add(String(x.match_id));}return map;
 }
 async function playerSubsDb(playerName){
@@ -400,7 +428,7 @@ async function submitGhostTestVoteDb(token,playerName,vote){
 }
 async function buildPlayerPortalDb(playerName,ghostMode){
   const name=norm(playerName),pRows=await q("select * from perranporth.players where player=$1 limit 1",[name]);if(!pRows.length)throw new Error("Player not found.");const player=pRows[0];
-  const pm=await q("select p.*,m.status,m.source,m.opponent from perranporth.player_match_data p join perranporth.matches m on m.match_id=p.match_id where p.player=$1 and lower(coalesce(m.source,''))<>'trial' and coalesce(m.opponent,'') not ilike 'test%' and coalesce(m.opponent,'') not ilike 'testing%' and coalesce(m.opponent,'') not ilike 'trial%'",[name]);
+  const pm=await q("select p.*,m.status,m.source,m.opponent from perranporth.player_match_data p join perranporth.matches m on m.match_id=p.match_id where p.player=$1 and lower(coalesce(m.source,''))<>'trial' and coalesce(m.opponent,'') not ilike 'test%' and coalesce(m.opponent,'') not ilike 'testing%' and coalesce(m.opponent,'') not ilike 'trial%' and coalesce(m.opponent,'') not ilike 'voting test%' and coalesce(m.opponent,'') not ilike 'demo%'",[name]);
   const my={appearances:0,starts:0,minutes:0,goals:0,assists:0,yellow:0,red:0,cleanSheets:0};const appeared=new Set();
   for(const r of pm){const used=!!r.starter||num(r.minutes_played)>0||low(r.notes).includes("used sub");if(used){my.appearances++;appeared.add(String(r.match_id));}if(r.starter)my.starts++;my.minutes+=num(r.minutes_played);my.goals+=int(r.goals);my.assists+=int(r.assists);my.yellow+=int(r.yellow_cards);my.red+=int(r.red_cards);}
   const dash=await currentDashboardData();my.cleanSheets=dash.matches.filter(m=>appeared.has(String(m.matchId))&&int(m.oppScore)===0).length;
@@ -413,6 +441,149 @@ async function buildPlayerPortalDb(playerName,ghostMode){
     if(vm.length)testMode=isTestMatch_(vm[0]);
   }
   return{playerName:name,ghostMode:!!ghostMode,pinChosen:!!player.pin_chosen,badgeUrl:norm(await setting("Voting Badge URL")),season:norm(await setting("Season"))||"2026/27",historicalSeason:histSeason,historicalTeam:histTeam,my,team:{games:dash.matches.length,goals:dash.matches.reduce((a,m)=>a+int(m.ourScore),0),conceded:dash.matches.reduce((a,m)=>a+int(m.oppScore),0),cleanSheets:dash.matches.filter(m=>int(m.oppScore)===0).length,topScorers:topTotals(goalTotals),topAssists:topTotals(assistTotals),matches:dash.matches.slice().reverse().slice(0,5)},voting:{open:vote.open,matchId:vote.matchId,matchName:vote.matchName,players:vote.players,paymentIdentifier:vote.paymentIdentifier,paymentLink:vote.paymentLink,alreadyVoted:!!vr.length,testMode},subs:await playerSubsDb(name)};
+}
+
+
+function dateTimeText_(v){
+  if(!v)return"";
+  const d=new Date(v);if(Number.isNaN(d.getTime()))return String(v);
+  return new Intl.DateTimeFormat("en-GB",{timeZone:"Europe/London",day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:false}).format(d);
+}
+async function auditManagement_(actor,area,action,detail="",result="OK"){
+  try{
+    await q("insert into perranporth.management_audit_log(audit_timestamp,user_id,user_name,area,action,detail,result,raw_data) values(now(),$1,$2,$3,$4,$5,$6,'{}'::jsonb)",[
+      actor?.id||"",actor?.name||"",norm(area),norm(action),norm(detail),norm(result)
+    ]);
+  }catch(e){console.warn("Audit write failed",e);}
+}
+async function managementAdminDataDb(){
+  const rows=await q("select * from perranporth.management_access where active=true order by name");
+  const users=rows.map(u=>{
+    const role=norm(u.role)||"READ_ONLY",ca=custom(u.custom_access);
+    return{
+      id:String(u.id),name:norm(u.name),email:norm(u.email),role,
+      customAccess:ca,playerAccessToo:!!u.player_access_too,
+      linkedPlayer:norm(u.linked_player),hasPin:!!norm(u.pin_hash),
+      permissions:permissionsForRole_(role,u.custom_access)
+    };
+  });
+  return{users,players:(await players(true)).map(p=>p.name),accessItems:ACCESS_ITEMS};
+}
+async function saveManagementUserDb(data,actor){
+  data=data||{};
+  const name=norm(data.name),email=norm(data.email),role=norm(data.role)||"READ_ONLY";
+  const playerAccessToo=!!data.playerAccessToo,linkedPlayer=norm(data.linkedPlayer);
+  const allowedRoles=Object.keys(ROLE_TILES);
+  const allowedTiles=new Set(ACCESS_ITEMS.map(x=>x.key));
+  const customAccess=(Array.isArray(data.customAccess)?data.customAccess:[]).map(norm).filter(x=>allowedTiles.has(x));
+  if(!name)throw new Error("Enter a name.");
+  if(!allowedRoles.includes(role))throw new Error("Choose a valid access level.");
+  if(email&&!/^\S+@\S+\.\S+$/.test(email))throw new Error("Enter a valid email address.");
+  if(playerAccessToo&&!linkedPlayer)throw new Error("Choose the linked player for Player access too.");
+
+  let existing=null;
+  if(norm(data.id)){
+    const er=await q("select * from perranporth.management_access where id=$1 limit 1",[norm(data.id)]);
+    existing=er[0]||null;
+  }
+
+  if(!existing){
+    const id="MU-"+crypto.randomUUID();
+    let pinHash="",version=1;
+    if(playerAccessToo&&linkedPlayer){
+      const pr=await q("select portal_pin from perranporth.players where player=$1 limit 1",[linkedPlayer]);
+      const playerPin=norm(pr[0]?.portal_pin);
+      if(playerPin)pinHash=await hash(id+"|"+playerPin);
+    }
+    await q("insert into perranporth.management_access(id,name,email,role,custom_access,player_access_too,linked_player,pin_hash,pin_version,active,created_at,updated_at,raw_data) values($1,$2,$3,$4,$5,$6,$7,$8,$9,true,now(),now(),'{}'::jsonb)",[
+      id,name,email,role,customAccess.join(","),playerAccessToo,linkedPlayer,pinHash,String(version)
+    ]);
+    await auditManagement_(actor,"Admin Panel","Create management user",name,"OK");
+    return id;
+  }
+
+  let pinHash=norm(existing.pin_hash),version=int(existing.pin_version,1);
+  const linkChanged=!!existing.player_access_too!==playerAccessToo||norm(existing.linked_player)!==linkedPlayer;
+  if(playerAccessToo&&linkedPlayer&&linkChanged){
+    const pr=await q("select portal_pin from perranporth.players where player=$1 limit 1",[linkedPlayer]);
+    const playerPin=norm(pr[0]?.portal_pin);
+    if(playerPin){pinHash=await hash(String(existing.id)+"|"+playerPin);version++;await q("delete from perranporth.admin_sessions where user_id=$1",[String(existing.id)]);}
+  }
+  await q("update perranporth.management_access set name=$1,email=$2,role=$3,custom_access=$4,player_access_too=$5,linked_player=$6,pin_hash=$7,pin_version=$8,active=true,updated_at=now() where id=$9",[
+    name,email,role,customAccess.join(","),playerAccessToo,linkedPlayer,pinHash,String(version),String(existing.id)
+  ]);
+  await auditManagement_(actor,"Admin Panel","Update management user",name,"OK");
+  return String(existing.id);
+}
+async function setManagementPinDb(id,pin,actor){
+  const uid=norm(id),p=norm(pin);
+  const rows=await q("select * from perranporth.management_access where id=$1 and active=true limit 1",[uid]);
+  if(!rows.length)throw new Error("Management user not found.");
+  const u=rows[0],shared=!!u.player_access_too;
+  if(shared?!/^\d{4}$/.test(p):!/^\d{4,8}$/.test(p))throw new Error(shared?"Choose a 4-digit PIN.":"Choose a 4 to 8 digit PIN.");
+  const next=int(u.pin_version,1)+1,pinHash=await hash(uid+"|"+p);
+  await q("update perranporth.management_access set pin_hash=$1,pin_version=$2,updated_at=now() where id=$3",[pinHash,String(next),uid]);
+  await q("delete from perranporth.admin_sessions where user_id=$1",[uid]);
+  if(shared){
+    const linked=norm(u.linked_player);if(!linked)throw new Error("No player is linked to this management account.");
+    const ph=await hash(linked+"|"+p);
+    await q("update perranporth.players set portal_pin=$1,portal_pin_hash=$2,pin_chosen=true,pin_version=pin_version+1 where player=$3",[p,ph,linked]);
+    await q("delete from perranporth.player_sessions where player=$1",[linked]);
+  }
+  await auditManagement_(actor,"Admin Panel","Set management PIN",norm(u.name),"OK");
+  return true;
+}
+async function revokeManagementSessionsDb(id,actor){
+  const uid=norm(id),r=await q("select name from perranporth.management_access where id=$1 limit 1",[uid]);
+  if(!r.length)throw new Error("Management user not found.");
+  await q("delete from perranporth.admin_sessions where user_id=$1",[uid]);
+  await auditManagement_(actor,"Admin Panel","Revoke sessions",norm(r[0].name),"OK");
+  return true;
+}
+async function revokeManagementUserDb(id,actor){
+  const uid=norm(id),r=await q("select name,pin_version from perranporth.management_access where id=$1 limit 1",[uid]);
+  if(!r.length)throw new Error("Management user not found.");
+  const next=int(r[0].pin_version,1)+1;
+  await q("update perranporth.management_access set pin_hash='',pin_version=$1,active=false,updated_at=now() where id=$2",[String(next),uid]);
+  await q("delete from perranporth.admin_sessions where user_id=$1",[uid]);
+  await auditManagement_(actor,"Admin Panel","Remove management access",norm(r[0].name),"OK");
+  return true;
+}
+async function managementAuditLogDb(filters){
+  filters=filters||{};
+  const all=await q("select * from perranporth.management_audit_log order by audit_timestamp desc nulls last,id desc limit 1000");
+  const users=[...new Set(all.map(x=>norm(x.user_name)).filter(Boolean))].sort();
+  const areas=[...new Set(all.map(x=>norm(x.area)).filter(Boolean))].sort();
+  const wantUser=norm(filters.user),wantArea=norm(filters.area),wantDate=norm(filters.date),wantAction=low(filters.action);
+  const limit=Math.max(1,Math.min(500,int(filters.limit,200)));
+  const rows=all.filter(x=>{
+    if(wantUser&&norm(x.user_name)!==wantUser)return false;
+    if(wantArea&&norm(x.area)!==wantArea)return false;
+    if(wantDate&&String(x.audit_timestamp||"").slice(0,10)!==wantDate)return false;
+    if(wantAction&&!low(x.action).includes(wantAction))return false;
+    return true;
+  }).slice(0,limit).map(x=>({
+    timestamp:dateTimeText_(x.audit_timestamp),
+    user:norm(x.user_name)||norm(x.user_id)||"Unknown",
+    area:norm(x.area),action:norm(x.action),detail:norm(x.detail),result:norm(x.result)
+  }));
+  return{rows,users,areas};
+}
+async function validateManagementResetTokenDb(token){
+  const t=norm(token);if(!t)throw new Error("This reset link is invalid.");
+  const r=await q("select * from perranporth.management_reset_tokens where token=$1 and expires_at>now() limit 1",[t]);
+  if(!r.length)throw new Error("This reset link is invalid or has expired.");
+  const u=await q("select name,player_access_too,active from perranporth.management_access where id=$1 limit 1",[r[0].user_id]);
+  if(!u.length||!u[0].active)throw new Error("Management access is no longer active.");
+  return{name:norm(u[0].name),playerAccessToo:!!u[0].player_access_too};
+}
+async function completeManagementPinResetDb(token,newPin){
+  const t=norm(token),r=await q("select * from perranporth.management_reset_tokens where token=$1 and expires_at>now() limit 1",[t]);
+  if(!r.length)throw new Error("This reset link is invalid or has expired.");
+  const actor={id:"RESET",name:"PIN reset link"};
+  await setManagementPinDb(String(r[0].user_id),newPin,actor);
+  await q("delete from perranporth.management_reset_tokens where token=$1",[t]);
+  return true;
 }
 
 async function handle(action,args){
@@ -432,17 +603,27 @@ async function handle(action,args){
   if(action==="choosePlayerPin")return choosePlayerPinDb(args[0],args[1]);
   if(action==="getPlayerPortalData"){const s=await getPlayerSessionDb(args[0]);if(!s)throw new Error("Your player session has expired. Please log in again.");return buildPlayerPortalDb(s.playerName,false);}
   if(action==="submitPortalVote"){const s=await getPlayerSessionDb(args[0]);if(!s)throw new Error("Your player session has expired. Please log in again.");return submitVoteDb(args[1]||{},s.playerName);}
+  if(action==="validateManagementResetToken")return validateManagementResetTokenDb(args[0]);
+  if(action==="completeManagementPinReset")return completeManagementPinResetDb(args[0],args[1]);
   const votingActions=new Set(["getVotingAdminData","getVotingSnapshot","openVoting","closeVoting"]);
   const subsActions=new Set(["getSubsTrackerData","setSubsStatus"]);
-  const fullActions=new Set(["getAllPlayersForAdmin","addPlayer","updatePlayer","getPlayerPinAdminData","resetPlayerPin"]);
-  const readActions=new Set(["getInitData","getMatches","getSeasonStats","getPlayerMinutesData","getGhostPlayerPortalDataDirect","submitGhostTestVote"]);
-  const actionPerm=votingActions.has(action)?"voting":subsActions.has(action)?"subs":fullActions.has(action)?"*":readActions.has(action)?"read":"match";
-  await auth(args[0],actionPerm);
+  const playerPinActions=new Set(["getPlayerPinAdminData","resetPlayerPin"]);
+  const adminActions=new Set(["getManagementAdminData","saveManagementUser","setManagementPin","revokeManagementUser","revokeManagementSessions","getManagementAuditLog"]);
+  const readActions=new Set(["getInitData","getMatches","getSeasonStats","getPlayerMinutesData","getGhostPlayerPortalDataDirect","submitGhostTestVote","recordManagementPageOpen"]);
+  const actionPerm=votingActions.has(action)?"voting":subsActions.has(action)?"subs":playerPinActions.has(action)?"player_pins":adminActions.has(action)?"admin":readActions.has(action)?"read":"match";
+  const authCtx=await auth(args[0],actionPerm);
   if(action==="getInitData")return initData();
   if(action==="getMatches")return matches(args[1]!==false);
   if(action==="getAllPlayersForAdmin")return allPlayers();
   if(action==="addPlayer")return addPlayer(args[1]||{});
   if(action==="updatePlayer")return updatePlayer(args[1],args[2]||{});
+  if(action==="getManagementAdminData")return managementAdminDataDb();
+  if(action==="saveManagementUser")return saveManagementUserDb(args[1]||{},authCtx);
+  if(action==="setManagementPin")return setManagementPinDb(args[1],args[2],authCtx);
+  if(action==="revokeManagementUser")return revokeManagementUserDb(args[1],authCtx);
+  if(action==="revokeManagementSessions")return revokeManagementSessionsDb(args[1],authCtx);
+  if(action==="getManagementAuditLog")return managementAuditLogDb(args[1]||{});
+  if(action==="recordManagementPageOpen"){await auditManagement_(authCtx,norm(args[1])||"App","Page open","", "OK");return true;}
   if(action==="getSeasonStats")return seasonStats();
   if(action==="getPlayerMinutesData")return minutesData(args[1]);
   if(action==="getVotingAdminData")return votingAdminData();
@@ -460,8 +641,8 @@ async function handle(action,args){
   if(action==="getMatchSummary"||action==="getFullMatchSummary")return summary(norm(args[1]));
   if(action==="getMatchClock")return clock(norm(args[1]));
   if(action==="createMatch"){const d=args[1]||{},id="M"+new Date().toISOString().replace(/\D/g,"").slice(0,14);await q("insert into perranporth.matches(match_id,match_date,opponent,venue,competition,kickoff,status,formation,captain,notes,include,source,raw_data) values($1,$2,$3,$4,$5,$6,'Scheduled',$7,$8,$9,true,'Manual','{}'::jsonb)",[id,d.date||new Date().toISOString().slice(0,10),norm(d.opponent),norm(d.venue)||"Home",norm(d.competition)||"Other",d.kickoff||null,norm(d.formation),norm(d.captain),norm(d.notes)]);return id;}
-  if(action==="createTrialMatch"){const tr=await q("select match_id from perranporth.matches where lower(source)='trial'");for(const t of tr){const id=String(t.match_id);await db.begin(async tx=>{for(const table of ["events","player_match_data","lineup_positions","votes","match_clocks"])await tx.unsafe("delete from perranporth."+table+" where match_id=$1",[id]);await tx.unsafe("delete from perranporth.matches where match_id=$1",[id]);});}const d=new Date(),id="TRIAL-"+new Intl.DateTimeFormat("sv-SE",{timeZone:"Europe/London",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit"}).format(d).replace(/\D/g,"").replace(/^(\d{8})(\d{6}).*/,"$1-$2");await q("insert into perranporth.matches(match_id,match_date,opponent,venue,competition,kickoff,status,notes,include,source,raw_data) values($1,$2,'Demo / Trial Match','Home','Trial',$3,'Scheduled','Temporary demo match — excluded from real match lists and season data.',true,'Trial','{}'::jsonb)",[id,new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/London"}).format(d),timeText(d)]);return id;}
-  if(action==="deleteTrialMatch"){const id=norm(args[1]),m=await matchRow(id);if(low(m.source)!=="trial")throw new Error("Only trial matches can be deleted with this button.");await db.begin(async tx=>{for(const table of ["events","player_match_data","lineup_positions","votes","match_clocks"])await tx.unsafe("delete from perranporth."+table+" where match_id=$1",[id]);await tx.unsafe("delete from perranporth.matches where match_id=$1",[id]);});if(norm(await setting("Voting Open Match ID"))===id){await setSettingDb("Voting Open",false);await setSettingDb("Voting Open Match ID","");await setSettingDb("Voting Match Name","");}return true;}
+  if(action==="createTrialMatch"){const tr=await q("select match_id from perranporth.matches where lower(source)='trial'");for(const t of tr){const id=String(t.match_id);await db.begin(async tx=>{for(const table of ["events","player_match_data","lineup_positions","votes","match_clocks","subs_confirmations","subs_rows","subs_status","subs_payments"])await tx.unsafe("delete from perranporth."+table+" where match_id=$1",[id]);await tx.unsafe("delete from perranporth.matches where match_id=$1",[id]);});}const d=new Date(),id="TRIAL-"+new Intl.DateTimeFormat("sv-SE",{timeZone:"Europe/London",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit"}).format(d).replace(/\D/g,"").replace(/^(\d{8})(\d{6}).*/,"$1-$2");await q("insert into perranporth.matches(match_id,match_date,opponent,venue,competition,kickoff,status,notes,include,source,raw_data) values($1,$2,'Demo / Trial Match','Home','Trial',$3,'Scheduled','Temporary demo match — excluded from real match lists and season data.',true,'Trial','{}'::jsonb)",[id,new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/London"}).format(d),timeText(d)]);return id;}
+  if(action==="deleteTrialMatch"){const id=norm(args[1]),m=await matchRow(id);if(low(m.source)!=="trial")throw new Error("Only trial matches can be deleted with this button.");await db.begin(async tx=>{for(const table of ["events","player_match_data","lineup_positions","votes","match_clocks","subs_confirmations","subs_rows","subs_status","subs_payments"])await tx.unsafe("delete from perranporth."+table+" where match_id=$1",[id]);await tx.unsafe("delete from perranporth.matches where match_id=$1",[id]);});if(norm(await setting("Voting Open Match ID"))===id){await setSettingDb("Voting Open",false);await setSettingDb("Voting Open Match ID","");await setSettingDb("Voting Match Name","");}return true;}
   if(action==="saveSquad")return saveSquad(norm(args[1]),args[2]||[]);
   if(action==="addPlayerToLiveSquad"){const id=norm(args[1]),name=norm(args[2]),m=await matchRow(id);if(m.status!=="Live")throw new Error("Players can only be added this way while the match is live.");const p=(await players(true)).find(x=>x.name===name);if(!p)throw new Error("That player is not currently active in Manage Players.");const sq=await squad(id);if(!sq.length)throw new Error("No squad is saved for this match. All active players are already available for events.");if(sq.some(x=>x.player===name))return summary(id);await q("insert into perranporth.player_match_data(match_id,player,squad_status,starter,starting_position,shirt_no,minutes_played,goals,assists,yellow_cards,red_cards,notes,raw_data) values($1,$2,'Sub',false,$3,$4,0,0,0,0,0,'','{}'::jsonb)",[id,name,p.position,p.shirtNo]);return summary(id);}
   if(action==="saveLineup")return saveLineup(norm(args[1]),args[2]||{});
