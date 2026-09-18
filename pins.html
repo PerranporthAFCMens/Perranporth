@@ -19,7 +19,7 @@
     .toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:#17212b;color:#fff;padding:10px 15px;border-radius:20px;display:none;z-index:99;max-width:90%;text-align:center}
     @media(max-width:620px){.wrap{padding:10px 8px 24px}.hero,.card{border-radius:14px;padding:13px}.badge{width:48px;height:48px}h1{font-size:20px}.row{grid-template-columns:1fr}}
   </style>
-  <script src="./bridge-live.js?v=20260918-pinfix1"></script>
+  <script src="./bridge-live.js?v=20260918-pinfix2"></script>
   <script src="./button-feedback.js" defer></script>
 </head>
 <body>
@@ -68,12 +68,16 @@ async function login(){
   const pin=document.getElementById('pin').value.trim();if(!pin)return toast('Enter management PIN');
   const btn=document.getElementById('loginBtn');btn.disabled=true;btn.textContent='Opening…';
   try{
-    if(!await pmdCall('verifyPin',pin)){toast('Incorrect PIN');return}
+    // Session creation is the authoritative PIN check. Avoid a second,
+    // page-specific verifyPin call that can reject a valid raw management PIN.
     const session=await pmdCall('createAdminSession',pin);TOKEN=tokenFromSession_(session);
     if(!TOKEN)throw new Error('Could not create management session.');
     try{localStorage.setItem('pmd_admin_auth',TOKEN)}catch(e){}
     await load();
-  }catch(e){toast(e.message||'Could not open Player PINs')}
+  }catch(e){
+    const msg=e&&e.message?e.message:'Could not open Player PINs';
+    toast(/incorrect pin/i.test(msg)?'Incorrect PIN':msg);
+  }
   finally{btn.disabled=false;btn.textContent='Open Player PINs'}
 }
 async function load(){
