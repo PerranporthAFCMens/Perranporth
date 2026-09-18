@@ -100,9 +100,36 @@ async function seasonStats(){
   const r=await q("select p.player,p.squad_status,p.minutes_played,p.goals,p.assists,p.yellow_cards,p.red_cards from perranporth.player_match_data p join perranporth.matches m on m.match_id=p.match_id where m.status='Completed' and lower(coalesce(m.source,''))<>'trial' and coalesce(m.opponent,'') not ilike 'test%' and coalesce(m.opponent,'') not ilike 'testing%' and coalesce(m.opponent,'') not ilike 'trial%'");
   const map=new Map();for(const x of r){const name=norm(x.player);if(!name)continue;if(!map.has(name))map.set(name,{player:name,appearances:0,goals:0,assists:0,minutes:0,yellows:0,reds:0});const z=map.get(name);if(norm(x.squad_status)!=="Unused")z.appearances++;z.minutes+=num(x.minutes_played);z.goals+=int(x.goals);z.assists+=int(x.assists);z.yellows+=int(x.yellow_cards);z.reds+=int(x.red_cards);}return[...map.values()].sort((a,b)=>b.goals-a.goals||b.assists-a.assists||b.minutes-a.minutes||a.player.localeCompare(b.player));
 }
-async function minutesData(){
+function historicVenue_(label){
+  const s=norm(label);
+  if(/\(A\)\s*$/i.test(s))return "Away";
+  if(/\(H\)\s*$/i.test(s))return "Home";
+  if(/\(N\)\s*$/i.test(s))return "Neutral";
+  return "";
+}
+function historicOpponent_(label){
+  return norm(label).replace(/\s*\((H|A|N)\)\s*$/i,"").trim();
+}
+async function historicMinutesData(){
+  const stats=await q("select * from perranporth.historic_player_season_stats where season='2025/26' order by total_minutes desc,appearances desc,player");
+  const mins=await q("select h.*,m.match_date,m.competition from perranporth.historic_player_match_minutes h left join perranporth.historic_matches m on m.season=h.season and m.match_label=h.match_label where h.season='2025/26' order by m.match_date desc nulls last,h.match_label,h.player");
+  const mm=new Map();
+  for(const x of mins){
+    const id="HIST-2025-26-"+norm(x.match_label).toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
+    if(!mm.has(id))mm.set(id,{matchId:id,date:dateText(x.match_date),opponent:historicOpponent_(x.match_label),venue:historicVenue_(x.match_label),competition:norm(x.competition),historical:true,players:[]});
+    mm.get(id).players.push({player:norm(x.player),status:"Played",starter:false,minuteOn:"",minuteOff:"",minutesPlayed:num(x.minutes)});
+  }
+  const season=stats.map(x=>({player:norm(x.player),starts:null,subApps:null,appearances:int(x.appearances),minutes:num(x.total_minutes),averageMinutes:x.average_minutes==null?0:Math.round(num(x.average_minutes)*10)/10,goals:int(x.goals),assists:int(x.assists),full90s:int(x.full_90s)}));
+  return{seasonLabel:"2025/26",historical:true,season,matches:[...mm.values()]};
+}
+async function minutesData(requestedSeason){
+  const wanted=norm(requestedSeason)||"2026/27";
+  if(wanted==="2025/26")return historicMinutesData();
   const r=await q("select p.*,m.match_date,m.opponent,m.venue,m.competition from perranporth.player_match_data p join perranporth.matches m on m.match_id=p.match_id where m.status='Completed' and lower(coalesce(m.source,''))<>'trial' and coalesce(m.opponent,'') not ilike 'test%' and coalesce(m.opponent,'') not ilike 'testing%' and coalesce(m.opponent,'') not ilike 'trial%' order by m.match_date desc,p.player");
-  const sm=new Map(),mm=new Map();for(const x of r){const player=norm(x.player),status=norm(x.squad_status),appeared=status!=="Unused"&&status!=="Not in Squad",starter=!!x.starter;if(!sm.has(player))sm.set(player,{player,starts:0,subApps:0,appearances:0,minutes:0});const s=sm.get(player);if(appeared){s.appearances++;if(starter)s.starts++;else s.subApps++;}s.minutes+=num(x.minutes_played);const id=String(x.match_id);if(!mm.has(id))mm.set(id,{matchId:id,date:dateText(x.match_date),opponent:norm(x.opponent),venue:norm(x.venue),competition:norm(x.competition),players:[]});mm.get(id).players.push({player,status,starter,minuteOn:x.minute_on??"",minuteOff:x.minute_off??"",minutesPlayed:num(x.minutes_played)});}const season=[...sm.values()].map(x=>({...x,averageMinutes:x.appearances?Math.round((x.minutes/x.appearances)*10)/10:0})).sort((a,b)=>b.minutes-a.minutes||b.appearances-a.appearances||a.player.localeCompare(b.player));return{season,matches:[...mm.values()]};
+  const sm=new Map(),mm=new Map();
+  for(const x of r){const player=norm(x.player),status=norm(x.squad_status),appeared=status!=="Unused"&&status!=="Not in Squad",starter=!!x.starter;if(!sm.has(player))sm.set(player,{player,starts:0,subApps:0,appearances:0,minutes:0});const s=sm.get(player);if(appeared){s.appearances++;if(starter)s.starts++;else s.subApps++;}s.minutes+=num(x.minutes_played);const id=String(x.match_id);if(!mm.has(id))mm.set(id,{matchId:id,date:dateText(x.match_date),opponent:norm(x.opponent),venue:norm(x.venue),competition:norm(x.competition),historical:false,players:[]});mm.get(id).players.push({player,status,starter,minuteOn:x.minute_on??"",minuteOff:x.minute_off??"",minutesPlayed:num(x.minutes_played)});}
+  const season=[...sm.values()].map(x=>({...x,averageMinutes:x.appearances?Math.round((x.minutes/x.appearances)*10)/10:0})).sort((a,b)=>b.minutes-a.minutes||b.appearances-a.appearances||a.player.localeCompare(b.player));
+  return{seasonLabel:"2026/27",historical:false,season,matches:[...mm.values()]};
 }
 async function handle(action,args){
   if(action==="createAdminSession")return createSession(args[0]);
@@ -117,7 +144,7 @@ async function handle(action,args){
   if(action==="addPlayer")return addPlayer(args[1]||{});
   if(action==="updatePlayer")return updatePlayer(args[1],args[2]||{});
   if(action==="getSeasonStats")return seasonStats();
-  if(action==="getPlayerMinutesData")return minutesData();
+  if(action==="getPlayerMinutesData")return minutesData(args[1]);
   if(action==="getSquad")return squad(norm(args[1]));
   if(action==="getLineup")return lineup(norm(args[1]));
   if(action==="getMatchSummary"||action==="getFullMatchSummary")return summary(norm(args[1]));
