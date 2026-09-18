@@ -30,7 +30,7 @@
     <a class="btn secondary" href="./" target="_top">Home</a>
   </div>
 
-  <div id="loginCard" class="card">
+  <div id="loginCard" class="card hidden">
     <h2>Management access</h2>
     <input id="pin" type="password" inputmode="numeric" placeholder="Enter management PIN">
     <button id="loginBtn" class="btn full" style="margin-top:9px" onclick="login()">Open Player PINs</button>
@@ -67,22 +67,6 @@ async function boot(){
     try{localStorage.removeItem('pmd_admin_auth')}catch(e){}
   }
   location.replace('./admin-panel.html?return=pins.html');
-}
-async function login(){
-  const pin=document.getElementById('pin').value.trim();if(!pin)return toast('Enter management PIN');
-  const btn=document.getElementById('loginBtn');btn.disabled=true;btn.textContent='Opening…';
-  try{
-    // Session creation is the authoritative PIN check. Avoid a second,
-    // page-specific verifyPin call that can reject a valid raw management PIN.
-    const session=await pmdCall('createAdminSession',pin);TOKEN=tokenFromSession_(session);
-    if(!TOKEN)throw new Error('Could not create management session.');
-    try{localStorage.setItem('pmd_admin_auth',TOKEN)}catch(e){}
-    await load();
-  }catch(e){
-    const msg=e&&e.message?e.message:'Could not open Player PINs';
-    toast(/incorrect pin/i.test(msg)?'Incorrect PIN':msg);
-  }
-  finally{btn.disabled=false;btn.textContent='Open Player PINs'}
 }
 async function load(){
   PLAYERS=await pmdCall('getPlayerPinAdminData',TOKEN);
