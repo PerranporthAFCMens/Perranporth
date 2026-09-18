@@ -263,14 +263,56 @@
 
     const SPECTATOR_URL='https://hennzggqaquevqgiucqn.supabase.co/functions/v1/perranporth-matchday';
     const SPECTATOR_KEY='sb_publishable_3ibkYwM0fFdHgKdGFIN5cQ_BT_WudUW';
+    const FORCE_APPS_SPECTATOR=new URLSearchParams(location.search).get('backend')==='apps';
+    const fallbackChannel='spectator_fallback_'+Date.now()+'_'+Math.random().toString(36).slice(2);
+    const fallbackPending=new Map();
+    let fallbackSeq=0;
     let spectatorBusy=false;
     let spectatorHasLoaded=false;
 
-    async function loadLive(){
-      if(spectatorBusy)return;
-      spectatorBusy=true;
+    function cleanupFallback_(id){
+      const p=fallbackPending.get(id);
+      if(!p)return;
+      clearTimeout(p.timer);
+      if(p.iframe&&p.iframe.parentNode)p.iframe.parentNode.removeChild(p.iframe);
+      fallbackPending.delete(id);
+    }
+
+    window.addEventListener('message',event=>{
+      const msg=event&&event.data;
+      if(!msg||msg.__pmd_match_bridge!==true||msg.channel!==fallbackChannel||!msg.id)return;
+      const p=fallbackPending.get(msg.id);
+      if(!p)return;
+      cleanupFallback_(msg.id);
+      if(msg.ok===true)p.resolve(msg.result);
+      else p.reject(new Error(msg.error||'Apps Script spectator fallback failed'));
+    });
+
+    function loadFromAppsScript_(){
+      return new Promise((resolve,reject)=>{
+        const id='spectator_fb_'+Date.now()+'_'+(++fallbackSeq);
+        const payload=JSON.stringify({action:'getPublicSpectatorData',args:[]});
+        const iframe=document.createElement('iframe');
+        iframe.setAttribute('aria-hidden','true');
+        iframe.tabIndex=-1;
+        iframe.style.position='fixed';
+        iframe.style.width='1px';
+        iframe.style.height='1px';
+        iframe.style.opacity='0';
+        iframe.style.pointerEvents='none';
+        iframe.style.border='0';
+        iframe.style.left='-9999px';
+        iframe.style.top='-9999px';
+        const timer=setTimeout(()=>{cleanupFallback_(id);reject(new Error('Apps Script spectator fallback timed out'));},15000);
+        fallbackPending.set(id,{resolve,reject,timer,iframe});
+        iframe.src=APP_URL+'?page=matchrpc&rid='+encodeURIComponent(id)+'&channel='+encodeURIComponent(fallbackChannel)+'&payload='+encodeURIComponent(payload)+'&_='+Date.now();
+        document.body.appendChild(iframe);
+      });
+    }
+
+    async function loadFromSupabase_(){
       const controller=new AbortController();
-      const timer=setTimeout(()=>controller.abort(),10000);
+      const timer=setTimeout(()=>controller.abort(),8000);
       try{
         const res=await fetch(SPECTATOR_URL,{
           method:'POST',
@@ -281,17 +323,42 @@
         });
         const body=await res.json();
         if(!res.ok||body.ok!==true)throw new Error(body.error||'Could not load live match');
-        applyLiveData(body.result);
-        spectatorHasLoaded=true;
-      }catch(err){
-        // Never replace good live data with a transient network error.
+        return body.result;
+      }finally{
+        clearTimeout(timer);
+      }
+    }
+
+    async function loadLive(){
+      if(spectatorBusy)return;
+      spectatorBusy=true;
+      let lastError=null;
+      try{
+        if(!FORCE_APPS_SPECTATOR){
+          try{
+            applyLiveData(await loadFromSupabase_());
+            spectatorHasLoaded=true;
+            return;
+          }catch(err){
+            lastError=err;
+          }
+        }
+
+        try{
+          applyLiveData(await loadFromAppsScript_());
+          spectatorHasLoaded=true;
+          return;
+        }catch(err){
+          lastError=err;
+        }
+
+        // Never replace good live data with a transient backend error.
         if(!spectatorHasLoaded){
           $('statusPill').textContent='CONNECTION ERROR';
           $('statusPill').className='livepill none';
-          $('minute').textContent=err&&err.name==='AbortError'?'Live data connection timed out':(err&&err.message)||'Could not load live match';
+          $('minute').textContent=(lastError&&lastError.message)||'Could not load live match';
         }
       }finally{
-        clearTimeout(timer);
         spectatorBusy=false;
       }
     }
