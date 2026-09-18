@@ -195,12 +195,29 @@ async function paymentForMatch(matchId){
   return{identifier,link};
 }
 async function publicVotingData(){
-  const open=bool(await setting("Voting Open"));
-  const matchId=norm(await setting("Voting Open Match ID"));
+  let open=bool(await setting("Voting Open"));
+  let matchId=norm(await setting("Voting Open Match ID"));
   let matchName=norm(await setting("Voting Match Name"));
-  if(matchId){try{matchName=matchLabelDb(await matchRow(matchId));}catch{}}
+  let validMatch=null;
+
+  if(matchId){
+    const rows=await q("select * from perranporth.matches where match_id=$1 limit 1",[matchId]);
+    if(rows.length){
+      validMatch=rows[0];
+      matchName=matchLabelDb(validMatch);
+    }else{
+      // Never let a stale/deleted voting match break the Player Portal.
+      open=false;
+      matchId="";
+      matchName="";
+      await setSettingDb("Voting Open",false);
+      await setSettingDb("Voting Open Match ID","");
+      await setSettingDb("Voting Match Name","");
+    }
+  }
+
   const ps=(await players(true)).map(x=>x.name);
-  const payment=matchId?await paymentForMatch(matchId):{identifier:"",link:""};
+  const payment=(matchId&&validMatch)?await paymentForMatch(matchId):{identifier:"",link:""};
   return{open,matchId,matchName,badgeUrl:norm(await setting("Voting Badge URL")),players:[...new Set(ps)],paymentIdentifier:payment.identifier||"",paymentLink:payment.link||""};
 }
 async function recordSubsResponseDb(matchId,playerName,value){
@@ -417,7 +434,7 @@ async function handle(action,args){
   if(action==="getMatchClock")return clock(norm(args[1]));
   if(action==="createMatch"){const d=args[1]||{},id="M"+new Date().toISOString().replace(/\D/g,"").slice(0,14);await q("insert into perranporth.matches(match_id,match_date,opponent,venue,competition,kickoff,status,formation,captain,notes,include,source,raw_data) values($1,$2,$3,$4,$5,$6,'Scheduled',$7,$8,$9,true,'Manual','{}'::jsonb)",[id,d.date||new Date().toISOString().slice(0,10),norm(d.opponent),norm(d.venue)||"Home",norm(d.competition)||"Other",d.kickoff||null,norm(d.formation),norm(d.captain),norm(d.notes)]);return id;}
   if(action==="createTrialMatch"){const tr=await q("select match_id from perranporth.matches where lower(source)='trial'");for(const t of tr){const id=String(t.match_id);await db.begin(async tx=>{for(const table of ["events","player_match_data","lineup_positions","votes","match_clocks"])await tx.unsafe("delete from perranporth."+table+" where match_id=$1",[id]);await tx.unsafe("delete from perranporth.matches where match_id=$1",[id]);});}const d=new Date(),id="TRIAL-"+new Intl.DateTimeFormat("sv-SE",{timeZone:"Europe/London",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit"}).format(d).replace(/\D/g,"").replace(/^(\d{8})(\d{6}).*/,"$1-$2");await q("insert into perranporth.matches(match_id,match_date,opponent,venue,competition,kickoff,status,notes,include,source,raw_data) values($1,$2,'Demo / Trial Match','Home','Trial',$3,'Scheduled','Temporary demo match — excluded from real match lists and season data.',true,'Trial','{}'::jsonb)",[id,new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/London"}).format(d),timeText(d)]);return id;}
-  if(action==="deleteTrialMatch"){const id=norm(args[1]),m=await matchRow(id);if(low(m.source)!=="trial")throw new Error("Only trial matches can be deleted with this button.");await db.begin(async tx=>{for(const table of ["events","player_match_data","lineup_positions","votes","match_clocks"])await tx.unsafe("delete from perranporth."+table+" where match_id=$1",[id]);await tx.unsafe("delete from perranporth.matches where match_id=$1",[id]);});return true;}
+  if(action==="deleteTrialMatch"){const id=norm(args[1]),m=await matchRow(id);if(low(m.source)!=="trial")throw new Error("Only trial matches can be deleted with this button.");await db.begin(async tx=>{for(const table of ["events","player_match_data","lineup_positions","votes","match_clocks"])await tx.unsafe("delete from perranporth."+table+" where match_id=$1",[id]);await tx.unsafe("delete from perranporth.matches where match_id=$1",[id]);});if(norm(await setting("Voting Open Match ID"))===id){await setSettingDb("Voting Open",false);await setSettingDb("Voting Open Match ID","");await setSettingDb("Voting Match Name","");}return true;}
   if(action==="saveSquad")return saveSquad(norm(args[1]),args[2]||[]);
   if(action==="addPlayerToLiveSquad"){const id=norm(args[1]),name=norm(args[2]),m=await matchRow(id);if(m.status!=="Live")throw new Error("Players can only be added this way while the match is live.");const p=(await players(true)).find(x=>x.name===name);if(!p)throw new Error("That player is not currently active in Manage Players.");const sq=await squad(id);if(!sq.length)throw new Error("No squad is saved for this match. All active players are already available for events.");if(sq.some(x=>x.player===name))return summary(id);await q("insert into perranporth.player_match_data(match_id,player,squad_status,starter,starting_position,shirt_no,minutes_played,goals,assists,yellow_cards,red_cards,notes,raw_data) values($1,$2,'Sub',false,$3,$4,0,0,0,0,0,'','{}'::jsonb)",[id,name,p.position,p.shirtNo]);return summary(id);}
   if(action==="saveLineup")return saveLineup(norm(args[1]),args[2]||{});
