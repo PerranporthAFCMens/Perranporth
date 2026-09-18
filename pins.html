@@ -19,7 +19,7 @@
     .toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:#17212b;color:#fff;padding:10px 15px;border-radius:20px;display:none;z-index:99;max-width:90%;text-align:center}
     @media(max-width:620px){.wrap{padding:10px 8px 24px}.hero,.card{border-radius:14px;padding:13px}.badge{width:48px;height:48px}h1{font-size:20px}.row{grid-template-columns:1fr}}
   </style>
-  <script src="./bridge-live.js?v=20260918-pinfix2"></script>
+  <script src="./bridge-live.js?v=20260918-auth1"></script>
   <script src="./button-feedback.js" defer></script>
 </head>
 <body>
@@ -58,11 +58,15 @@ function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function tokenFromSession_(session){return typeof session==='string'?session:String(session&&session.token||'')}
 async function boot(){
-  let saved='';try{saved=localStorage.getItem('pmd_admin_auth')||''}catch(e){}
-  if(saved){
-    try{if(await pmdCall('verifyPin',saved)){TOKEN=saved;await load();return}}catch(e){}
+  let saved=null;
+  try{saved=JSON.parse(localStorage.getItem('pmd_admin_auth')||'null')}catch(e){}
+  if(saved&&saved.token&&saved.expiresAt>Date.now()){
+    try{
+      if(await pmdCall('verifyPin',saved.token)){TOKEN=saved.token;await load();return}
+    }catch(e){}
     try{localStorage.removeItem('pmd_admin_auth')}catch(e){}
   }
+  location.replace('./admin-panel.html?return=pins.html');
 }
 async function login(){
   const pin=document.getElementById('pin').value.trim();if(!pin)return toast('Enter management PIN');
