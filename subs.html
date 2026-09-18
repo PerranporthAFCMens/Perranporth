@@ -8,7 +8,7 @@
   <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png">
   <link rel="icon" type="image/png" href="./apple-touch-icon.png">
   <link rel="manifest" href="./manifest.webmanifest">
-  <script src="./bridge-live.js?v=20260915-2"></script>
+  <script src="./bridge-live.js?v=20260918-auth1"></script>
   <script src="./button-feedback.js" defer></script>
   <style>
     :root{--blue:#0b5ea8;--dark:#123b5d;--danger:#c62828;--green:#23811c;--bg:#f3f6f8;--line:#d8e0e6;--text:#17212b;--muted:#71808e}
@@ -74,24 +74,7 @@ function saveAdminAuth_(session){try{localStorage.setItem(ADMIN_AUTH_KEY,JSON.st
 function getSavedAdminAuth_(){try{const raw=localStorage.getItem(ADMIN_AUTH_KEY);if(!raw)return null;const x=JSON.parse(raw);if(!x||!x.token||!x.expiresAt)return null;return x}catch(e){return null}}
 function clearSavedAdminAuth_(){try{localStorage.removeItem(ADMIN_AUTH_KEY)}catch(e){}}
 function showLogin_(){
-  document.getElementById('subsApp').classList.add('hidden');
-  let host=document.getElementById('dynamicLogin');
-  if(!host){
-    host=document.createElement('div');
-    host.id='dynamicLogin';
-    host.className='pinWrap';
-    host.innerHTML=`
-      <div class="card pinCard">
-        <h1>Perranporth Subs Tracker</h1>
-        <div class="muted" style="margin:8px 0 16px">Management access only</div>
-        <input id="pinInput" type="password" inputmode="numeric" placeholder="Enter PIN">
-        <button class="btn full" style="margin-top:10px" onclick="login()">Open Subs Tracker</button>
-      </div>`;
-    document.querySelector('.app').appendChild(host);
-  }else{
-    host.classList.remove('hidden');
-  }
-  setTimeout(()=>{const i=document.getElementById('pinInput'); if(i) i.focus()},0);
+  location.replace('./admin-panel.html?return=subs.html');
 }
 async function boot(){
   const saved=getSavedAdminAuth_();
