@@ -86,8 +86,13 @@
   }
   function unpackToken_(token){
     token=String(token||'');
-    if(!token.startsWith('PMD2.'))return {a:token,s:''};
-    try{return JSON.parse(atob(token.slice(5)))}catch(e){return {a:token,s:''}}
+    if(!token.startsWith('PMD2.'))return {a:token,s:'',packed:false};
+    try{
+      const x=JSON.parse(atob(token.slice(5)));
+      return {a:x.a||'',s:x.s||'',packed:true};
+    }catch(e){
+      return {a:token,s:'',packed:false};
+    }
   }
   function appsArgs_(args){
     if(!args.length)return args;
@@ -138,7 +143,7 @@
       };
     }catch(err){
       console.warn('Supabase matchday login unavailable; staying on Apps Script.',err);
-      return apps;
+      return {token:packToken_(apps.token,''),expiresAt:apps.expiresAt};
     }
   }
 
@@ -161,8 +166,11 @@
 
     if(action==='verifyPin'){
       const t=unpackToken_(args[0]);
-      // Apps Script remains the authority for restoring an old/non-dual session.
-      // Dual sessions also verify the Supabase half so matchday writes stay safe.
+
+      // Force one fresh login after the Supabase cutover so an old raw
+      // Apps Script-only token cannot silently keep Match Centre on Sheets.
+      if(!FORCE_APPS&&!t.packed)return false;
+
       const appsValid=await rawCall_('verifyPin',[t.a||args[0]]);
       if(!appsValid)return false;
       if(t.s&&!FORCE_APPS){
