@@ -12,13 +12,15 @@
   const pending=new Map();
 
   const SB_MATCH_ACTIONS=new Set([
-    'getMatches','createMatch','createTrialMatch','deleteTrialMatch',
+    'getInitData','getMatches','createMatch','createTrialMatch','deleteTrialMatch',
     'getSquad','saveSquad','addPlayerToLiveSquad',
     'getLineup','saveLineup','setStartingLineup',
     'getMatchSummary','getFullMatchSummary',
     'startMatch','finishMatch','reopenMatch',
     'getMatchClock','toggleMatchClock','resetMatchClock','enterHalfTime','startSecondHalf',
-    'logEvent','updateEvent','deleteEvent','deleteLastEvent'
+    'logEvent','updateEvent','deleteEvent','deleteLastEvent',
+    'getSeasonStats','getPlayerMinutesData',
+    'getAllPlayersForAdmin','addPlayer','updatePlayer'
   ]);
 
   function cleanup_(id){
