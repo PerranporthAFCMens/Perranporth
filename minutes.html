@@ -37,6 +37,13 @@
 
   <div id="app" class="hidden">
     <div class="card">
+      <div style="margin-bottom:12px">
+        <label for="seasonSelect" style="display:block;font-size:12px;font-weight:800;margin-bottom:5px">Season</label>
+        <select id="seasonSelect" onchange="changeSeason()">
+          <option value="2026/27">2026/27</option>
+          <option value="2025/26">2025/26</option>
+        </select>
+      </div>
       <div class="tabs">
         <button id="seasonTab" class="btn active" onclick="showTab('season')">Season Summary</button>
         <button id="matchTab" class="btn" onclick="showTab('match')">By Match</button>
@@ -58,38 +65,26 @@ let TOKEN='',DATA=null;
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.style.display='block';setTimeout(()=>t.style.display='none',2300)}
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function val(id){return document.getElementById(id).value}
-function tokenFromSession(x){return (x&&typeof x==='object'&&x.token)?String(x.token):String(x||'')}
 async function boot(){
   let saved=null;
   try{saved=JSON.parse(localStorage.getItem('pmd_admin_auth')||'null')}catch(e){}
   if(saved&&saved.token&&saved.expiresAt>Date.now()){
     try{
-      if(await pmdCall('verifyPin',saved.token)){TOKEN=saved.token;await load();return}
+      if(await pmdCall('verifyPin',saved.token)){TOKEN=saved.token;await load('2026/27');return}
     }catch(e){}
     try{localStorage.removeItem('pmd_admin_auth')}catch(e){}
   }
   location.replace('./admin-panel.html?return=minutes.html');
 }
-async function login(){
-  const pin=val('pin').trim();if(!pin)return toast('Enter PIN');
-  const btn=document.getElementById('loginBtn');btn.disabled=true;btn.textContent='Opening…';
-  try{
-    if(!await pmdCall('verifyPin',pin)){toast('Incorrect PIN');return}
-    const session=await pmdCall('createAdminSession',pin);
-    TOKEN=tokenFromSession(session);
-    if(!TOKEN)throw new Error('Could not create admin session');
-    try{localStorage.setItem('pmd_admin_auth',TOKEN)}catch(e){}
-    await load();
-  }catch(e){toast(e.message||'Could not open Player Minutes')}
-  finally{btn.disabled=false;btn.textContent='Open Player Minutes'}
-}
-async function load(){
-  DATA=await pmdCall('getPlayerMinutesData',TOKEN);
+async function changeSeason(){await load(val('seasonSelect')||'2026/27')}
+async function load(season){
+  DATA=await pmdCall('getPlayerMinutesData',TOKEN,season||'2026/27');
   document.getElementById('loginCard').classList.add('hidden');
   document.getElementById('app').classList.remove('hidden');
+  document.getElementById('seasonSelect').value=DATA.seasonLabel||season||'2026/27';
   renderSeason();
   const sel=document.getElementById('matchSelect');
-  sel.innerHTML=(DATA.matches||[]).map(m=>`<option value="${esc(m.matchId)}">${esc(m.date)} — ${esc(m.opponent)} (${esc(m.venue)})</option>`).join('');
+  sel.innerHTML=(DATA.matches||[]).map(m=>`<option value="${esc(m.matchId)}">${esc(m.date)} — ${esc(m.opponent)}${m.venue?' ('+esc(m.venue)+')':''}</option>`).join('');
   renderMatch();
 }
 function showTab(tab){
@@ -102,13 +97,18 @@ function renderSeason(){
   const rows=DATA.season||[];
   const totalApps=rows.reduce((n,p)=>n+Number(p.appearances||0),0);
   const totalMinutes=rows.reduce((n,p)=>n+Number(p.minutes||0),0);
-  document.getElementById('seasonSummary').innerHTML=`<div class="stat"><b>${rows.length}</b><span class="muted">players used</span></div><div class="stat"><b>${totalApps}</b><span class="muted">player apps</span></div><div class="stat"><b>${totalMinutes}</b><span class="muted">player minutes</span></div>`;
-  document.getElementById('seasonTable').innerHTML=rows.length?`<div class="tableWrap"><table><thead><tr><th>Player</th><th class="num">Starts</th><th class="num">Sub Apps</th><th class="num">Apps</th><th class="num">Minutes</th><th class="num">Avg</th></tr></thead><tbody>${rows.map(p=>`<tr><td class="player">${esc(p.player)}</td><td class="num">${p.starts}</td><td class="num">${p.subApps}</td><td class="num">${p.appearances}</td><td class="num"><b>${p.minutes}</b></td><td class="num">${p.averageMinutes}</td></tr>`).join('')}</tbody></table></div>`:'<div class="muted">No completed-match minutes yet.</div>';
+  document.getElementById('seasonSummary').innerHTML=`<div class="stat"><b>${rows.length}</b><span class="muted">players used</span></div><div class="stat"><b>${totalApps}</b><span class="muted">player apps</span></div><div class="stat"><b>${Math.round(totalMinutes)}</b><span class="muted">player minutes</span></div>`;
+  const historical=!!DATA.historical;
+  document.getElementById('seasonTable').innerHTML=rows.length?`<div class="tableWrap"><table><thead><tr><th>Player</th><th class="num">Starts</th><th class="num">Sub Apps</th><th class="num">Apps</th><th class="num">Minutes</th><th class="num">Avg</th></tr></thead><tbody>${rows.map(p=>`<tr><td class="player">${esc(p.player)}</td><td class="num">${historical?'—':p.starts}</td><td class="num">${historical?'—':p.subApps}</td><td class="num">${p.appearances}</td><td class="num"><b>${Math.round(Number(p.minutes||0))}</b></td><td class="num">${p.averageMinutes}</td></tr>`).join('')}</tbody></table></div>`:'<div class="muted">No completed-match minutes yet.</div>';
 }
 function renderMatch(){
   const id=val('matchSelect');const m=(DATA.matches||[]).find(x=>x.matchId===id);
   if(!m){document.getElementById('matchTable').innerHTML='<div class="muted">No completed matches.</div>';return}
   const players=m.players||[];
+  if(DATA.historical){
+    document.getElementById('matchTable').innerHTML=`<div class="muted" style="margin-bottom:8px">${esc(m.competition||'')} · ${esc(m.venue||'')}</div><div class="tableWrap"><table><thead><tr><th>Player</th><th class="num">Minutes</th></tr></thead><tbody>${players.map(p=>`<tr><td class="player">${esc(p.player)}</td><td class="num"><b>${p.minutesPlayed}</b></td></tr>`).join('')}</tbody></table></div>`;
+    return;
+  }
   document.getElementById('matchTable').innerHTML=`<div class="muted" style="margin-bottom:8px">${esc(m.competition||'')} · ${esc(m.venue||'')}</div><div class="tableWrap"><table><thead><tr><th>Player</th><th>Status</th><th class="num">On</th><th class="num">Off</th><th class="num">Minutes</th></tr></thead><tbody>${players.map(p=>`<tr><td class="player">${esc(p.player)}</td><td><span class="pill">${esc(p.starter?'Starter':p.status||'Sub')}</span></td><td class="num">${p.minuteOn===''?'—':p.minuteOn}</td><td class="num">${p.minuteOff===''?'—':p.minuteOff}</td><td class="num"><b>${p.minutesPlayed}</b></td></tr>`).join('')}</tbody></table></div>`;
 }
 window.addEventListener('load',boot);
