@@ -332,31 +332,20 @@
     async function loadLive(){
       if(spectatorBusy)return;
       spectatorBusy=true;
-      let lastError=null;
       try{
-        if(!FORCE_APPS_SPECTATOR){
-          try{
-            applyLiveData(await loadFromSupabase_());
-            spectatorHasLoaded=true;
-            return;
-          }catch(err){
-            lastError=err;
-          }
-        }
-
         try{
-          applyLiveData(await loadFromAppsScript_());
+          const data=FORCE_APPS_SPECTATOR
+            ? await loadFromAppsScript_()
+            : await loadFromSupabase_();
+          applyLiveData(data);
           spectatorHasLoaded=true;
-          return;
         }catch(err){
-          lastError=err;
-        }
-
-        // Never replace good live data with a transient backend error.
-        if(!spectatorHasLoaded){
-          $('statusPill').textContent='CONNECTION ERROR';
-          $('statusPill').className='livepill none';
-          $('minute').textContent=(lastError&&lastError.message)||'Could not load live match';
+          // Never replace good live data with a transient backend error.
+          if(!spectatorHasLoaded){
+            $('statusPill').textContent='CONNECTION ERROR';
+            $('statusPill').className='livepill none';
+            $('minute').textContent=(err&&err.message)||'Could not load live match';
+          }
         }
       }finally{
         spectatorBusy=false;
