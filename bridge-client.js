@@ -103,7 +103,7 @@
       return true;
     }
 
-    if(action==='getGhostPlayerPortalDataDirect'){
+    if(action==='getGhostPlayerPortalDataDirect'||action==='submitGhostTestVote'){
       return sbCall_(action,adminArgs_(args),30000);
     }
 
