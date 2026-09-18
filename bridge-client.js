@@ -75,15 +75,8 @@
     if(FORCE_APPS)return appsCall_(action,args);
 
     if(action==='createAdminSession'){
-      const pin=args[0];
-      const [apps,sb]=await Promise.all([
-        appsCall_('createAdminSession',[pin]),
-        sbCall_('createAdminSession',[pin],12000)
-      ]);
-      return {
-        token:packAdmin_(apps&&apps.token,sb&&sb.token),
-        expiresAt:Math.min(Number(apps&&apps.expiresAt||Infinity),Number(sb&&sb.expiresAt||Infinity))
-      };
+      const sb=await sbCall_('createAdminSession',[args[0]],12000);
+      return {token:packAdmin_('',sb&&sb.token),expiresAt:Number(sb&&sb.expiresAt||Date.now()+86400000)};
     }
 
     if(action==='verifyPin'){
@@ -96,10 +89,8 @@
 
     if(action==='logoutAdminSession'){
       const t=unpackAdmin_(args[0]);
-      const jobs=[];
-      if(t.s)jobs.push(sbCall_('logoutAdminSession',[t.s],8000).catch(()=>true));
-      if(t.a)jobs.push(appsCall_('logoutAdminSession',[t.a]).catch(()=>true));
-      await Promise.all(jobs);
+      const token=t.s||(t.packed?'':String(args[0]||''));
+      if(token)await sbCall_('logoutAdminSession',[token],8000).catch(()=>true);
       return true;
     }
 
