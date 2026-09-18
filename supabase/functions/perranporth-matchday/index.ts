@@ -377,6 +377,18 @@ async function historicalTeamStatsDb(currentGameCount){
   base.sameStage={season:"2025/26",games:ms.length,goals:ms.reduce((n,m)=>n+int(m.ourScore),0),conceded:ms.reduce((n,m)=>n+int(m.oppScore),0),cleanSheets:ms.filter(m=>int(m.oppScore)===0).length,topScorers:topTotals(g),topAssists:topTotals(a),matches:ms.slice().reverse().slice(0,5)};
   return base;
 }
+
+async function submitGhostTestVoteDb(token,playerName,vote){
+  await auth(token,"read");
+  const matchId=norm(await setting("Voting Open Match ID"));
+  if(!bool(await setting("Voting Open"))||!matchId)throw new Error("Voting is not open.");
+  const m=await matchRow(matchId);
+  const isTest=low(m.source)==="trial"||low(m.competition)==="trial"||/^(test|testing|trial|voting test)\b/i.test(norm(m.opponent));
+  if(!isTest)throw new Error("Ghost voting is only available for test/trial matches.");
+  const p=(await players(true)).find(x=>x.name===norm(playerName));
+  if(!p)throw new Error("Select an active player.");
+  return submitVoteDb(vote||{},p.name);
+}
 async function buildPlayerPortalDb(playerName,ghostMode){
   const name=norm(playerName),pRows=await q("select * from perranporth.players where player=$1 limit 1",[name]);if(!pRows.length)throw new Error("Player not found.");const player=pRows[0];
   const pm=await q("select p.*,m.status,m.source,m.opponent from perranporth.player_match_data p join perranporth.matches m on m.match_id=p.match_id where p.player=$1 and lower(coalesce(m.source,''))<>'trial' and coalesce(m.opponent,'') not ilike 'test%' and coalesce(m.opponent,'') not ilike 'testing%' and coalesce(m.opponent,'') not ilike 'trial%'",[name]);
@@ -386,7 +398,12 @@ async function buildPlayerPortalDb(playerName,ghostMode){
   const histSeason=await historicalPlayerStatsDb(name,dash.matches.length),histTeam=await historicalTeamStatsDb(dash.matches.length);
   const goalTotals={},assistTotals={};for(const m of dash.matches)for(const e of m.events||[]){if(e.type==="Goal"&&low(e.team)!=="opposition"){if(e.player)goalTotals[e.player]=(goalTotals[e.player]||0)+1;if(e.secondaryPlayer)assistTotals[e.secondaryPlayer]=(assistTotals[e.secondaryPlayer]||0)+1;}}
   const vote=await publicVotingData(),vr=vote.matchId?await q("select 1 from perranporth.votes where match_id=$1 and lower(regexp_replace(trim(voter_name),'\\s+',' ','g'))=$2 limit 1",[vote.matchId,normName(name)]):[];
-  return{playerName:name,ghostMode:!!ghostMode,pinChosen:!!player.pin_chosen,badgeUrl:norm(await setting("Voting Badge URL")),season:norm(await setting("Season"))||"2026/27",historicalSeason:histSeason,historicalTeam:histTeam,my,team:{games:dash.matches.length,goals:dash.matches.reduce((a,m)=>a+int(m.ourScore),0),conceded:dash.matches.reduce((a,m)=>a+int(m.oppScore),0),cleanSheets:dash.matches.filter(m=>int(m.oppScore)===0).length,topScorers:topTotals(goalTotals),topAssists:topTotals(assistTotals),matches:dash.matches.slice().reverse().slice(0,5)},voting:{open:vote.open,matchId:vote.matchId,matchName:vote.matchName,players:vote.players,paymentIdentifier:vote.paymentIdentifier,paymentLink:vote.paymentLink,alreadyVoted:!!vr.length},subs:await playerSubsDb(name)};
+  let testMode=false;
+  if(vote.matchId){
+    const vm=await q("select source,competition,opponent from perranporth.matches where match_id=$1 limit 1",[vote.matchId]);
+    if(vm.length)testMode=low(vm[0].source)==="trial"||low(vm[0].competition)==="trial"||/^(test|testing|trial|voting test)\\b/i.test(norm(vm[0].opponent));
+  }
+  return{playerName:name,ghostMode:!!ghostMode,pinChosen:!!player.pin_chosen,badgeUrl:norm(await setting("Voting Badge URL")),season:norm(await setting("Season"))||"2026/27",historicalSeason:histSeason,historicalTeam:histTeam,my,team:{games:dash.matches.length,goals:dash.matches.reduce((a,m)=>a+int(m.ourScore),0),conceded:dash.matches.reduce((a,m)=>a+int(m.oppScore),0),cleanSheets:dash.matches.filter(m=>int(m.oppScore)===0).length,topScorers:topTotals(goalTotals),topAssists:topTotals(assistTotals),matches:dash.matches.slice().reverse().slice(0,5)},voting:{open:vote.open,matchId:vote.matchId,matchName:vote.matchName,players:vote.players,paymentIdentifier:vote.paymentIdentifier,paymentLink:vote.paymentLink,alreadyVoted:!!vr.length,testMode},subs:await playerSubsDb(name)};
 }
 
 async function handle(action,args){
@@ -409,7 +426,7 @@ async function handle(action,args){
   const votingActions=new Set(["getVotingAdminData","getVotingSnapshot","openVoting","closeVoting"]);
   const subsActions=new Set(["getSubsTrackerData","setSubsStatus"]);
   const fullActions=new Set(["getAllPlayersForAdmin","addPlayer","updatePlayer","getPlayerPinAdminData","resetPlayerPin"]);
-  const readActions=new Set(["getInitData","getMatches","getSeasonStats","getPlayerMinutesData","getGhostPlayerPortalDataDirect"]);
+  const readActions=new Set(["getInitData","getMatches","getSeasonStats","getPlayerMinutesData","getGhostPlayerPortalDataDirect","submitGhostTestVote"]);
   const actionPerm=votingActions.has(action)?"voting":subsActions.has(action)?"subs":fullActions.has(action)?"*":readActions.has(action)?"read":"match";
   await auth(args[0],actionPerm);
   if(action==="getInitData")return initData();
@@ -428,6 +445,7 @@ async function handle(action,args){
   if(action==="getPlayerPinAdminData"){const r=await q("select player,active,pin_chosen from perranporth.players order by active desc,player");return r.map(x=>({name:norm(x.player),active:!!x.active,pinChosen:!!x.pin_chosen}));}
   if(action==="resetPlayerPin")return resetPlayerPinDb(args[1],args[2]);
   if(action==="getGhostPlayerPortalDataDirect"){const name=norm(args[1]);const p=(await players(true)).find(x=>x.name===name);if(!p)throw new Error("Select an active player.");return buildPlayerPortalDb(name,true);}
+  if(action==="submitGhostTestVote")return submitGhostTestVoteDb(args[0],args[1],args[2]||{});
   if(action==="getSquad")return squad(norm(args[1]));
   if(action==="getLineup")return lineup(norm(args[1]));
   if(action==="getMatchSummary"||action==="getFullMatchSummary")return summary(norm(args[1]));
