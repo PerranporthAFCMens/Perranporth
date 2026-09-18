@@ -187,13 +187,20 @@
     }
 
     if(action==='verifyPin'){
-      const t=unpackToken_(args[0]);
+      const supplied=String(args[0]||'').trim();
+      const t=unpackToken_(supplied);
+
+      // A raw management PIN is valid input during login. The fresh-login
+      // safeguard only applies to old saved Apps Script session tokens.
+      if(!t.packed && /^\d{4,}$/.test(supplied)){
+        return !!(await rawCall_('verifyPin',[supplied]));
+      }
 
       // Force one fresh login after the Supabase cutover so an old raw
-      // Apps Script-only token cannot silently keep Match Centre on Sheets.
+      // Apps Script-only session token cannot silently keep Match Centre on Sheets.
       if(!FORCE_APPS&&!t.packed)return false;
 
-      const appsValid=await rawCall_('verifyPin',[t.a||args[0]]);
+      const appsValid=await rawCall_('verifyPin',[t.a||supplied]);
       if(!appsValid)return false;
       if(t.s&&!FORCE_APPS){
         try{return !!(await sbCall_('verifyPin',[t.s],10000))}catch(e){return false}
