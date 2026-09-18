@@ -31,7 +31,10 @@
     'getVotingAdminData','getVotingSnapshot','openVoting','closeVoting',
     'getSubsTrackerData','setSubsStatus',
     'getPlayerPinAdminData','resetPlayerPin',
-    'getGhostPlayerPortalDataDirect'
+    'getGhostPlayerPortalDataDirect',
+    'getManagementAdminData','saveManagementUser','setManagementPin',
+    'revokeManagementUser','revokeManagementSessions','getManagementAuditLog',
+    'recordManagementPageOpen'
   ]);
   const SB_WRITE_ACTIONS=new Set([
     'createMatch','createTrialMatch','deleteTrialMatch',
@@ -40,11 +43,10 @@
     'toggleMatchClock','resetMatchClock','enterHalfTime','startSecondHalf',
     'logEvent','updateEvent','deleteEvent','deleteLastEvent',
     'addPlayer','updatePlayer',
-    'openVoting','closeVoting','setSubsStatus','resetPlayerPin'
+    'openVoting','closeVoting','setSubsStatus','resetPlayerPin',
+    'saveManagementUser','setManagementPin','revokeManagementUser','revokeManagementSessions',
+    'recordManagementPageOpen'
   ]);
-  let supabaseHealthy=true;
-  let supabaseWriteCommitted=false;
-
   function cleanup_(id){
     const p=pending.get(id);
     if(!p)return;
@@ -148,42 +150,16 @@
   }
 
   async function createDualSession_(pin){
-    const apps=await rawCall_('createAdminSession',[pin]);
-    if(FORCE_APPS)return apps;
-    try{
-      const sb=await sbCall_('createAdminSession',[pin],12000);
-      return {
-        token:packToken_(apps.token,sb.token),
-        expiresAt:Math.min(Number(apps.expiresAt||Infinity),Number(sb.expiresAt||Infinity))
-      };
-    }catch(err){
-      console.warn('Supabase matchday login unavailable; staying on Apps Script.',err);
-      return {token:packToken_(apps.token,''),expiresAt:apps.expiresAt};
-    }
+    if(FORCE_APPS)return rawCall_('createAdminSession',[pin]);
+    const sb=await sbCall_('createAdminSession',[pin],12000);
+    return {token:packToken_('',sb.token),expiresAt:Number(sb.expiresAt||Date.now()+86400000)};
   }
 
   async function callProtected_(action,args){
     if(FORCE_APPS)return rawCall_(action,appsArgs_(args));
-
-    const tokens=args.length?unpackToken_(args[0]):{a:'',s:''};
-    if(SB_MATCH_ACTIONS.has(action)&&tokens.s&&supabaseHealthy){
-      const isWrite=SB_WRITE_ACTIONS.has(action);
-      try{
-        const result=await sbCall_(action,sbArgs_(args),isWrite?20000:15000);
-        if(isWrite)supabaseWriteCommitted=true;
-        return result;
-      }catch(err){
-        // Before the first Supabase write, a failed read safely trips the page
-        // back to Apps Script. After a Supabase write, never mix databases.
-        if(!isWrite&&!supabaseWriteCommitted){
-          supabaseHealthy=false;
-          console.warn('Supabase preflight read failed; using Apps Script for this page session.',err);
-          return rawCall_(action,appsArgs_(args));
-        }
-        throw err;
-      }
-    }
-    return rawCall_(action,appsArgs_(args));
+    if(!SB_MATCH_ACTIONS.has(action))throw new Error('Unsupported Supabase action: '+action);
+    const isWrite=SB_WRITE_ACTIONS.has(action);
+    return sbCall_(action,sbArgs_(args),isWrite?20000:15000);
   }
 
   window.pmdCall=async (action,...args)=>{
@@ -193,33 +169,26 @@
 
     if(action==='verifyPin'){
       const supplied=String(args[0]||'').trim();
+      if(FORCE_APPS)return !!(await rawCall_('verifyPin',[supplied]));
       const t=unpackToken_(supplied);
-
-      // A raw management PIN is valid input during login. The fresh-login
-      // safeguard only applies to old saved Apps Script session tokens.
-      if(!t.packed && /^\d{4,}$/.test(supplied)){
-        return !!(await rawCall_('verifyPin',[supplied]));
-      }
-
-      // Force one fresh login after the Supabase cutover so an old raw
-      // Apps Script-only session token cannot silently keep Match Centre on Sheets.
-      if(!FORCE_APPS&&!t.packed)return false;
-
-      const appsValid=await rawCall_('verifyPin',[t.a||supplied]);
-      if(!appsValid)return false;
-      if(t.s&&!FORCE_APPS){
-        try{return !!(await sbCall_('verifyPin',[t.s],10000))}catch(e){return false}
-      }
-      return true;
+      const token=t.s||(t.packed?'':supplied);
+      if(!token)return false;
+      try{return !!(await sbCall_('verifyPin',[token],10000))}catch(e){return false}
     }
 
     if(action==='logoutAdminSession'){
+      if(FORCE_APPS){
+        const t=unpackToken_(args[0]);
+        return rawCall_('logoutAdminSession',[t.a||args[0]]);
+      }
       const t=unpackToken_(args[0]);
-      const jobs=[];
-      if(t.a)jobs.push(rawCall_('logoutAdminSession',[t.a]).catch(()=>true));
-      if(t.s&&!FORCE_APPS)jobs.push(sbCall_('logoutAdminSession',[t.s],8000).catch(()=>true));
-      await Promise.all(jobs);
+      const token=t.s||(t.packed?'':String(args[0]||''));
+      if(token)await sbCall_('logoutAdminSession',[token],8000).catch(()=>true);
       return true;
+    }
+
+    if(action==='validateManagementResetToken'||action==='completeManagementPinReset'){
+      return FORCE_APPS?rawCall_(action,args):sbCall_(action,args,12000);
     }
 
     // Subs Tracker originally used two helper RPC actions that are not part of
@@ -243,5 +212,5 @@
     return callProtected_(action,args);
   };
 
-  window.pmdBackendMode=()=>FORCE_APPS?'apps-script':'hybrid-supabase';
+  window.pmdBackendMode=()=>FORCE_APPS?'apps-script':'supabase';
 })();
