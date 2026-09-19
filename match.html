@@ -331,6 +331,10 @@
         <button class="btn green full" style="margin-top:10px" onclick="saveLineupBuilder()">Save Lineup</button>
         <button class="btn full" style="margin-top:7px" onclick="setAsStartingLineup()">✅ Set as Starting Lineup</button>
         <div class="muted" style="margin-top:6px;text-align:center">Can be used before or after kick-off. This sets the players currently on the pitch as the starting XI.</div>
+        <div class="grid2" style="margin-top:10px">
+          <button class="btn vote" onclick="shareLineupImage()">Share Lineup</button>
+          <button class="btn secondary" onclick="previewLineupImage()">Preview Image</button>
+        </div>
         <button class="btn secondary full" style="margin-top:7px" onclick="editSelectedSquad()">List Squad View</button>
       </div>
     </div>
@@ -425,6 +429,25 @@
       <button id="shareResultBtn" class="btn green full hidden" style="margin-top:7px" onclick="shareResult(currentMatchId)">Share Result</button>
       <button id="faEventsBtn" class="btn secondary full hidden" style="margin-top:7px" onclick="showFaEvents(currentMatchId)">FA Full-Time Events</button>
       <button class="btn secondary full" style="margin-top:7px" onclick="showView('home')">Back to Home</button>
+    </div>
+  </div>
+</div>
+
+<div id="lineupShareModal" class="modalBack hidden" role="dialog" aria-modal="true" aria-labelledby="lineupShareTitle">
+  <div class="modalCard" style="max-width:560px">
+    <div class="score">
+      <div>
+        <h2 id="lineupShareTitle">Lineup Image</h2>
+        <div class="muted">Starting XI and substitutes</div>
+      </div>
+      <button class="btn secondary" onclick="closeLineupPreview()">Close</button>
+    </div>
+    <div style="margin-top:12px;background:#eef2f5;border-radius:12px;padding:8px">
+      <img id="lineupSharePreview" alt="Lineup preview" style="display:block;width:100%;height:auto;border-radius:8px">
+    </div>
+    <div class="grid2" style="margin-top:12px">
+      <button class="btn green" onclick="shareLineupImage(true)">Share</button>
+      <button class="btn secondary" onclick="downloadLineupImage()">Download PNG</button>
     </div>
   </div>
 </div>
@@ -1033,6 +1056,288 @@ function renderLineupBuilder(){
 
   document.getElementById('lineupBenchCount').textContent=`${benchPlayers.length} subs`;
   document.getElementById('lineupAvailableCount').textContent=`${avail.length} available`;
+}
+
+
+let lineupShareBlob=null;
+let lineupShareUrl='';
+
+function roundedRect_(ctx,x,y,w,h,r){
+  const rr=Math.min(r,w/2,h/2);
+  ctx.beginPath();
+  ctx.moveTo(x+rr,y);
+  ctx.arcTo(x+w,y,x+w,y+h,rr);
+  ctx.arcTo(x+w,y+h,x,y+h,rr);
+  ctx.arcTo(x,y+h,x,y,rr);
+  ctx.arcTo(x,y,x+w,y,rr);
+  ctx.closePath();
+}
+
+function fitText_(ctx,text,maxWidth,startSize,minSize,weight){
+  let size=startSize;
+  do{
+    ctx.font=(weight||700)+' '+size+'px -apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif';
+    if(ctx.measureText(text).width<=maxWidth)return size;
+    size-=2;
+  }while(size>minSize);
+  return minSize;
+}
+
+function lineupShareMatch_(){
+  return (DATA.matches||[]).find(m=>m.matchId===currentMatchId)
+    || (currentSummary&&currentSummary.match)
+    || {};
+}
+
+function lineupFixtureTitle_(m){
+  const team=(DATA&&DATA.teamName)||'Perranporth AFC';
+  const opp=m.opponent||'Opponent';
+  const venue=String(m.venue||'').toLowerCase();
+  return venue==='away' ? opp+' v '+team : team+' v '+opp;
+}
+
+function drawLineupPitch_(ctx,x,y,w,h,pitchPlayers){
+  ctx.save();
+
+  roundedRect_(ctx,x,y,w,h,24);
+  ctx.fillStyle='#17813a';
+  ctx.fill();
+  ctx.strokeStyle='#ffffff';
+  ctx.lineWidth=5;
+  ctx.stroke();
+
+  ctx.strokeStyle='rgba(255,255,255,.82)';
+  ctx.lineWidth=4;
+
+  ctx.beginPath();
+  ctx.moveTo(x,y+h/2);
+  ctx.lineTo(x+w,y+h/2);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(x+w/2,y+h/2,82,0,Math.PI*2);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(x+w/2,y+h/2,7,0,Math.PI*2);
+  ctx.fillStyle='#fff';
+  ctx.fill();
+
+  const boxW=w*.52,boxH=h*.16,boxX=x+(w-boxW)/2;
+  ctx.strokeRect(boxX,y,boxW,boxH);
+  ctx.strokeRect(boxX,y+h-boxH,boxW,boxH);
+
+  const sixW=w*.26,sixH=h*.07,sixX=x+(w-sixW)/2;
+  ctx.strokeRect(sixX,y,sixW,sixH);
+  ctx.strokeRect(sixX,y+h-sixH,sixW,sixH);
+
+  const goalW=w*.18,goalH=14,goalX=x+(w-goalW)/2;
+  ctx.strokeRect(goalX,y-goalH,goalW,goalH);
+  ctx.strokeRect(goalX,y+h,goalW,goalH);
+
+  pitchPlayers.forEach(p=>{
+    const px=x+(Math.max(5,Math.min(95,Number(p.x)||50))/100)*w;
+    const py=y+(Math.max(5,Math.min(95,Number(p.y)||50))/100)*h;
+    const meta=lineupPlayerMeta_(p.player);
+    const display=lineupDisplayName_(p.player);
+
+    ctx.beginPath();
+    ctx.arc(px,py,34,0,Math.PI*2);
+    ctx.fillStyle=meta.goalkeeper?'#e5a31a':'#0b5ea8';
+    ctx.fill();
+    ctx.strokeStyle='#fff';
+    ctx.lineWidth=5;
+    ctx.stroke();
+
+    ctx.fillStyle=meta.goalkeeper?'#17212b':'#fff';
+    ctx.textAlign='center';
+    ctx.textBaseline='middle';
+    ctx.font='800 24px -apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif';
+    ctx.fillText(lineupInitials_(p.player),px,py+1);
+
+    const labelMax=190;
+    const labelSize=fitText_(ctx,display,labelMax,25,17,800);
+    ctx.font='800 '+labelSize+'px -apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif';
+    const tw=Math.min(labelMax,ctx.measureText(display).width);
+    const labelW=tw+28,labelH=42;
+    const lx=px-labelW/2,ly=py+42;
+    roundedRect_(ctx,lx,ly,labelW,labelH,10);
+    ctx.fillStyle='rgba(255,255,255,.96)';
+    ctx.fill();
+    ctx.fillStyle='#17212b';
+    ctx.textBaseline='middle';
+    ctx.fillText(display,px,ly+labelH/2+1);
+  });
+
+  ctx.restore();
+}
+
+function buildLineupCanvas_(){
+  ensureLineupSlots_();
+
+  const pitchPlayers=lineupState
+    .filter(p=>p.area==='Pitch'&&p.player)
+    .sort((a,b)=>(a.slot??99)-(b.slot??99));
+  const benchPlayers=lineupState
+    .filter(p=>p.area==='Bench'&&p.player)
+    .sort((a,b)=>(a.order||0)-(b.order||0));
+
+  if(!pitchPlayers.length)throw new Error('Put players on the pitch before sharing the lineup.');
+
+  const m=lineupShareMatch_();
+  const formation=val('lineupFormation')||'Custom';
+  const canvas=document.createElement('canvas');
+  canvas.width=1080;
+  canvas.height=1350;
+  const ctx=canvas.getContext('2d');
+
+  ctx.fillStyle='#f2f5f7';
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  // Header
+  ctx.fillStyle='#0b5ea8';
+  ctx.fillRect(0,0,1080,210);
+
+  ctx.fillStyle='#fff';
+  ctx.textAlign='center';
+  ctx.textBaseline='alphabetic';
+  ctx.font='900 36px -apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif';
+  ctx.fillText('PERRANPORTH AFC',540,58);
+
+  const title=lineupFixtureTitle_(m);
+  const titleSize=fitText_(ctx,title,950,52,30,900);
+  ctx.font='900 '+titleSize+'px -apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif';
+  ctx.fillText(title,540,120);
+
+  const meta=[m.competition,m.date,m.kickoff?('KO '+m.kickoff):'',formation?('Formation '+formation):'']
+    .filter(Boolean).join('  •  ');
+  const metaSize=fitText_(ctx,meta,950,26,18,600);
+  ctx.font='600 '+metaSize+'px -apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif';
+  ctx.fillStyle='rgba(255,255,255,.92)';
+  ctx.fillText(meta,540,168);
+
+  // Pitch
+  drawLineupPitch_(ctx,100,255,880,820,pitchPlayers);
+
+  // Subs section
+  const subsY=1120;
+  ctx.fillStyle='#17212b';
+  ctx.textAlign='left';
+  ctx.font='900 31px -apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif';
+  ctx.fillText('SUBSTITUTES',100,subsY);
+
+  if(benchPlayers.length){
+    const names=benchPlayers.map(p=>p.player);
+    ctx.font='700 25px -apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif';
+    ctx.fillStyle='#334155';
+
+    let x=100,y=subsY+48;
+    const maxX=980;
+    names.forEach((name,i)=>{
+      const label=(i+1)+'. '+name;
+      const w=ctx.measureText(label).width+34;
+      if(x+w>maxX){x=100;y+=50}
+      roundedRect_(ctx,x,y-31,w,40,9);
+      ctx.fillStyle='#fff';
+      ctx.fill();
+      ctx.fillStyle='#334155';
+      ctx.fillText(label,x+16,y-3);
+      x+=w+12;
+    });
+  }else{
+    ctx.font='600 24px -apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif';
+    ctx.fillStyle='#64748b';
+    ctx.fillText('No substitutes selected',100,subsY+46);
+  }
+
+  ctx.textAlign='right';
+  ctx.font='600 18px -apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif';
+  ctx.fillStyle='#64748b';
+  ctx.fillText('Generated from Perranporth Match Centre',980,1320);
+
+  return canvas;
+}
+
+function canvasBlob_(canvas){
+  return new Promise((resolve,reject)=>{
+    canvas.toBlob(blob=>blob?resolve(blob):reject(new Error('Could not create lineup image.')),'image/png',1);
+  });
+}
+
+async function prepareLineupImage_(){
+  const canvas=buildLineupCanvas_();
+  const blob=await canvasBlob_(canvas);
+
+  if(lineupShareUrl)URL.revokeObjectURL(lineupShareUrl);
+  lineupShareBlob=blob;
+  lineupShareUrl=URL.createObjectURL(blob);
+  return blob;
+}
+
+async function previewLineupImage(){
+  try{
+    await prepareLineupImage_();
+    document.getElementById('lineupSharePreview').src=lineupShareUrl;
+    document.getElementById('lineupShareModal').classList.remove('hidden');
+  }catch(e){
+    toast(e&&e.message?e.message:'Could not create lineup image');
+  }
+}
+
+function closeLineupPreview(){
+  document.getElementById('lineupShareModal').classList.add('hidden');
+}
+
+function lineupFileName_(){
+  const m=lineupShareMatch_();
+  const opp=String(m.opponent||'lineup').replace(/[^a-z0-9]+/gi,'-').replace(/^-|-$/g,'');
+  const date=String(m.date||'').replace(/[^0-9]+/g,'-').replace(/^-|-$/g,'');
+  return 'Perranporth-Lineup-'+(opp||'Match')+(date?'-'+date:'')+'.png';
+}
+
+async function shareLineupImage(fromPreview){
+  try{
+    const blob=(fromPreview&&lineupShareBlob)?lineupShareBlob:await prepareLineupImage_();
+    const file=new File([blob],lineupFileName_(),{type:'image/png'});
+    const m=lineupShareMatch_();
+    const shareData={
+      title:'Perranporth AFC Lineup',
+      text:lineupFixtureTitle_(m),
+      files:[file]
+    };
+
+    if(navigator.share&&(!navigator.canShare||navigator.canShare({files:[file]}))){
+      await navigator.share(shareData);
+      return;
+    }
+
+    downloadLineupBlob_(blob);
+    toast('Lineup image downloaded');
+  }catch(e){
+    if(e&&e.name==='AbortError')return;
+    toast(e&&e.message?e.message:'Could not share lineup image');
+  }
+}
+
+function downloadLineupBlob_(blob){
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download=lineupFileName_();
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1500);
+}
+
+async function downloadLineupImage(){
+  try{
+    const blob=lineupShareBlob||await prepareLineupImage_();
+    downloadLineupBlob_(blob);
+    toast('Lineup PNG downloaded');
+  }catch(e){
+    toast(e&&e.message?e.message:'Could not create lineup image');
+  }
 }
 
 function escapeJs_(s){
