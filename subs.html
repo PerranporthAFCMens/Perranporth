@@ -35,7 +35,8 @@
 </head>
 <body onload="boot()">
 <div class="app">
-  <div id="subsApp">
+  <div id="subsLogin" class="pinWrap hidden"><div class="card pinCard"><h1>Subs Tracker</h1><div class="muted" style="margin:8px 0 16px">Management access required</div><input id="pinInput" type="password" inputmode="numeric" placeholder="Enter management PIN"><button id="subsLoginBtn" class="btn full" style="margin-top:10px" onclick="login()">Open Subs Tracker</button><div id="loginError" class="muted" style="margin-top:10px"></div></div></div>
+  <div id="subsApp" class="hidden">
     <div class="card hero">
       <img id="badge" class="badge" src="./apple-touch-icon.png" alt="Perranporth AFC">
       <div><h1>Perranporth Subs Tracker</h1><div id="season" class="muted">Loading current data…</div></div>
@@ -73,8 +74,10 @@ function val(id){const e=document.getElementById(id);return e?e.value:''}
 function saveAdminAuth_(session){try{localStorage.setItem(ADMIN_AUTH_KEY,JSON.stringify(session))}catch(e){}}
 function getSavedAdminAuth_(){try{const raw=localStorage.getItem(ADMIN_AUTH_KEY);if(!raw)return null;try{const x=JSON.parse(raw);if(x&&x.token)return x}catch(e){}return {token:raw,expiresAt:Date.now()+86400000}}catch(e){return null}}
 function clearSavedAdminAuth_(){try{localStorage.removeItem(ADMIN_AUTH_KEY)}catch(e){}}
-function showLogin_(){
-  location.replace('./admin-panel.html?return=subs.html');
+function showLogin_(message){
+  document.getElementById('subsApp').classList.add('hidden');
+  document.getElementById('subsLogin').classList.remove('hidden');
+  const e=document.getElementById('loginError');if(e)e.textContent=message||'';
 }
 async function boot(){
   const saved=getSavedAdminAuth_();
@@ -84,8 +87,8 @@ async function boot(){
       const [init,subs]=await Promise.all([pmdCall('getInitData',PIN),pmdCall('getSubsTrackerData',PIN)]);
       return openSubsFromData_({init,subs});
     }catch(e){
-      // Only send the user back to login if the stored session genuinely cannot load Subs.
       PIN='';
+      return showLogin_(e.message||'Your management session has expired. Please enter your PIN again.');
     }
   }
   showLogin_();
@@ -93,7 +96,7 @@ async function boot(){
 async function login(){
   const entered=val('pinInput').trim();
   if(!entered)return toast('Enter PIN');
-  const btn=document.querySelector('#dynamicLogin button');
+  const btn=document.getElementById('subsLoginBtn');
   if(btn){btn.disabled=true;btn.textContent='Opening…'}
   try{
     const data=await pmdCall('openSubsWithPin',entered);
@@ -106,7 +109,7 @@ async function login(){
   }
 }
 function openSubsFromData_(data){
-  const login=document.getElementById('dynamicLogin');
+  const login=document.getElementById('subsLogin');
   if(login) login.classList.add('hidden');
   document.getElementById('subsApp').classList.remove('hidden');
   const init=(data&&data.init)||{};
