@@ -118,6 +118,7 @@
     const copy=args.slice();
     const t=unpackToken_(copy[0]);
     if(t.s)copy[0]=t.s;
+    else if(t.packed)copy[0]='';
     return copy;
   }
 
