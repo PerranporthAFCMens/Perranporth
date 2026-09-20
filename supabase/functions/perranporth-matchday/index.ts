@@ -1,7 +1,13 @@
 
 import postgres from "npm:postgres@3.4.7";
 
-const db = postgres(Deno.env.get("SUPABASE_DB_URL")!, { max: 1, prepare: false });
+const db = postgres(Deno.env.get("SUPABASE_DB_URL")!, {
+  max: 1,
+  prepare: false,
+  idle_timeout: 5,
+  max_lifetime: 60,
+  connect_timeout: 10
+});
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
