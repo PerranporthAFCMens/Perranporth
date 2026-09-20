@@ -26,6 +26,7 @@
     'getSubsTrackerData','setSubsStatus',
     'getPlayerPinAdminData','resetPlayerPin',
     'getGhostPlayerPortalDataDirect',
+    'createAdminSession','verifyPin','logoutAdminSession',
     'getManagementAdminData','saveManagementUser','setManagementPin',
     'revokeManagementUser','revokeManagementSessions','getManagementAuditLog',
     'recordManagementPageOpen'
