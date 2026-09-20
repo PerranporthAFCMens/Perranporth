@@ -54,7 +54,7 @@ function returnTarget_(){
   const allowed=new Set(['match.html','voting.html','subs.html','pins.html','minutes.html','dashboard.html']);
   return allowed.has(raw)?raw:'';
 }
-function goReturn_(){const t=returnTarget_();if(t)location.replace('./'+t)}
+function goReturn_(){const t=returnTarget_();if(t)location.replace('./'+t+'?fromAdmin=1')}
 async function boot(){
   renderAccessGrid();
   const s=readSaved();
@@ -62,7 +62,6 @@ async function boot(){
     TOKEN=s.token;
     try{
       if(await pmdCall('verifyPin',TOKEN)){
-        if(returnTarget_()){goReturn_();return}
         return await load();
       }
     }catch(e){}
