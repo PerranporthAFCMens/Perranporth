@@ -80,9 +80,11 @@ async function boot(){
   const saved=getSavedAdminAuth_();
   if(saved&&saved.token&&saved.expiresAt>Date.now()){
     try{
-      const data=await pmdCall('resumeSubs',saved.token);
+      const ok=await pmdCall('verifyPin',saved.token);
+      if(!ok)throw new Error('Session expired');
       PIN=saved.token;
-      return openSubsFromData_(data);
+      const [init,subs]=await Promise.all([pmdCall('getInitData',PIN),pmdCall('getSubsTrackerData',PIN)]);
+      return openSubsFromData_({init,subs});
     }catch(e){
       clearSavedAdminAuth_();
     }
