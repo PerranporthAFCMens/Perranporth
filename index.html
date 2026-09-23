@@ -22,23 +22,47 @@
     .icon{font-size:34px;margin-bottom:12px}h2{font-size:20px;margin:0 0 8px}.desc{color:var(--muted);line-height:1.45;font-size:14px;flex:1}
     .btn{display:block;text-decoration:none;text-align:center;background:var(--blue);color:#fff;font-weight:700;padding:13px 14px;border-radius:12px;margin-top:18px}.btn:hover{background:var(--blue2)}
     .footer{text-align:center;color:var(--muted);font-size:12px;margin-top:18px}
+    .hidden{display:none!important}
+    .loginWrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+    .loginCard{width:100%;max-width:390px;background:#fff;border:1px solid var(--line);border-radius:20px;padding:22px;box-shadow:0 14px 40px rgba(19,70,120,.14);text-align:center}
+    .loginCard .badge{width:72px;height:72px;margin-bottom:10px}
+    .loginCard input{width:100%;min-height:50px;border:1px solid #cad7e2;border-radius:12px;padding:12px 14px;font-size:18px;text-align:center;letter-spacing:.08em;margin-top:12px}
+    .loginCard button{width:100%;border:0;border-radius:12px;min-height:50px;background:var(--blue);color:#fff;font-size:16px;font-weight:800;margin-top:10px;cursor:pointer}
+    .loginError{min-height:18px;color:#a52a22;font-size:13px;margin-top:9px}
+    .heroActions{margin-left:auto;display:flex;gap:8px;align-items:center}
+    .logoutBtn{border:1px solid #ffffff55;border-radius:11px;background:#ffffff20;color:#fff;padding:9px 11px;font-weight:800;cursor:pointer}
     .refreshBtn{text-decoration:none;margin-left:auto;flex:0 0 auto;width:44px;height:44px;border:1px solid #ffffff55;border-radius:50%;background:#ffffff20;color:#fff;font-size:25px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent}.refreshBtn:active{transform:scale(.96);background:#ffffff32}
     @media(max-width:720px){.grid{grid-template-columns:1fr}.card{min-height:0}.hero{padding:22px 18px}.badge{width:64px;height:64px}h1{font-size:23px}}
   </style>
   <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png">
   <link rel="icon" type="image/png" href="./apple-touch-icon.png">
   <link rel="manifest" href="./manifest.webmanifest">
+  <script src="./bridge-live.js?v=20260923-controlcentre-auth1"></script>
   <script src="./button-feedback.js" defer></script>
 </head>
-<body>
-  <div class="wrap">
+<body onload="bootControlCentre()">
+  <div id="loginWrap" class="loginWrap">
+    <div class="loginCard">
+      <img class="badge" src="./apple-touch-icon.png" alt="Perranporth AFC">
+      <h1>Management Login</h1>
+      <div class="sub" style="color:var(--muted)">Perranporth AFC · Control Centre</div>
+      <input id="pinInput" type="password" inputmode="numeric" autocomplete="current-password" placeholder="Management PIN" aria-label="Management PIN">
+      <button id="loginBtn" type="button" onclick="loginControlCentre()">Open Control Centre</button>
+      <div id="loginError" class="loginError"></div>
+    </div>
+  </div>
+
+  <div id="controlCentre" class="wrap hidden">
     <div class="hero">
       <img class="badge" src="https://www.perranporthafc.co.uk/wp-content/themes/sharkfin-1-4/images/perranporth-afc-large.jpg" alt="Perranporth AFC">
       <div>
         <h1>Perranporth Control Centre</h1>
         <div class="sub">2026/27 First Team</div>
       </div>
-      <a class="refreshBtn" href="https://PerranporthAFCMens.github.io/Perranporth/" target="_top" aria-label="Refresh" title="Refresh">↻</a>
+      <div class="heroActions">
+        <a class="refreshBtn" href="./" target="_top" aria-label="Refresh" title="Refresh">↻</a>
+        <button class="logoutBtn" type="button" onclick="logoutControlCentre()">Log out</button>
+      </div>
     </div>
 
     <div class="grid">
@@ -115,5 +139,87 @@
 
     <div class="footer">One link for all management tools</div>
   </div>
+<script>
+const CONTROL_AUTH_KEY='pmd_admin_auth';
+let CONTROL_TOKEN='';
+
+function readControlSession(){
+  try{
+    const raw=localStorage.getItem(CONTROL_AUTH_KEY)||'';
+    if(!raw)return null;
+    try{
+      const parsed=JSON.parse(raw);
+      if(parsed&&parsed.token)return parsed;
+    }catch(e){}
+    return {token:raw,expiresAt:Date.now()+86400000};
+  }catch(e){return null}
+}
+function saveControlSession(session){
+  try{localStorage.setItem(CONTROL_AUTH_KEY,JSON.stringify(session))}catch(e){}
+}
+function clearControlSession(){
+  try{localStorage.removeItem(CONTROL_AUTH_KEY)}catch(e){}
+}
+function showControlLogin(message){
+  document.getElementById('controlCentre').classList.add('hidden');
+  document.getElementById('loginWrap').classList.remove('hidden');
+  document.getElementById('loginError').textContent=message||'';
+  CONTROL_TOKEN='';
+}
+function showControlCentre(){
+  document.getElementById('loginWrap').classList.add('hidden');
+  document.getElementById('controlCentre').classList.remove('hidden');
+}
+async function bootControlCentre(){
+  const session=readControlSession();
+  if(session&&session.token&&(!session.expiresAt||session.expiresAt>Date.now())){
+    try{
+      if(await pmdCall('verifyPin',session.token)){
+        CONTROL_TOKEN=session.token;
+        showControlCentre();
+        try{await pmdCall('recordManagementPageOpen',CONTROL_TOKEN,'control_centre')}catch(e){}
+        return;
+      }
+    }catch(e){}
+    clearControlSession();
+  }
+  showControlLogin();
+}
+async function loginControlCentre(){
+  const pin=document.getElementById('pinInput').value.trim();
+  const button=document.getElementById('loginBtn');
+  const error=document.getElementById('loginError');
+  if(!pin){error.textContent='Enter your management PIN.';return}
+  button.disabled=true;
+  button.textContent='Checking…';
+  error.textContent='';
+  try{
+    const session=await pmdCall('createAdminSession',pin);
+    if(!session||!session.token)throw new Error('Login failed');
+    saveControlSession(session);
+    CONTROL_TOKEN=session.token;
+    showControlCentre();
+    try{await pmdCall('recordManagementPageOpen',CONTROL_TOKEN,'control_centre')}catch(e){}
+  }catch(e){
+    clearControlSession();
+    CONTROL_TOKEN='';
+    error.textContent=e?.message||'Access denied';
+  }finally{
+    button.disabled=false;
+    button.textContent='Open Control Centre';
+  }
+}
+async function logoutControlCentre(){
+  const token=CONTROL_TOKEN||readControlSession()?.token||'';
+  clearControlSession();
+  CONTROL_TOKEN='';
+  try{if(token)await pmdCall('logoutAdminSession',token)}catch(e){}
+  document.getElementById('pinInput').value='';
+  showControlLogin();
+}
+document.addEventListener('keydown',e=>{
+  if(e.key==='Enter'&&!document.getElementById('loginWrap').classList.contains('hidden'))loginControlCentre();
+});
+</script>
 </body>
 </html>
