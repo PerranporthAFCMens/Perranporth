@@ -29,7 +29,7 @@
     'createAdminSession','verifyPin','logoutAdminSession',
     'getManagementAdminData','saveManagementUser','setManagementPin',
     'revokeManagementUser','revokeManagementSessions','getManagementAuditLog',
-    'recordManagementPageOpen'
+    'recordManagementPageOpen','getManagementContext'
   ]);
   const SB_WRITE_ACTIONS=new Set([
     'createMatch','createTrialMatch','deleteTrialMatch',
