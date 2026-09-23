@@ -66,42 +66,42 @@
     </div>
 
     <div class="grid">
-      <div class="card">
+      <div class="card" data-access-key="match">
         <div class="icon">⚽</div>
         <h2>Match Centre</h2>
         <div class="desc">Squads, lineup, live match clock, events, substitutions, past matches and player stats.</div>
         <a class="btn" href="./match.html" target="_top">Open Match Centre</a>
       </div>
 
-      <div class="card">
+      <div class="card" data-access-key="voting">
         <div class="icon">🗳️</div>
         <h2>Voting Centre</h2>
         <div class="desc">Open or close 3–2–1 voting, copy the player voting link and view the latest results.</div>
         <a class="btn" href="./voting.html" target="_top">Open Voting Centre</a>
       </div>
 
-      <div class="card">
+      <div class="card" data-access-key="subs">
         <div class="icon">💷</div>
         <h2>Subs Tracker</h2>
         <div class="desc">See who owes match subs, review by player or by match, and mark payments as paid.</div>
         <a class="btn" href="./subs.html?v=20260920-sessionfix3" target="_top">Open Subs Tracker</a>
       </div>
 
-      <div class="card">
+      <div class="card" data-access-key="dashboard">
         <div class="icon">📊</div>
         <h2>Season Dashboard</h2>
         <div class="desc">Live 2026/27 season data, scoring trends, player contributions, goal locations and match analysis.</div>
         <a class="btn" href="./dashboard.html">Open Season Dashboard</a>
       </div>
 
-      <div class="card">
+      <div class="card" data-access-key="minutes">
         <div class="icon">⏱️</div>
         <h2>Player Minutes</h2>
         <div class="desc">Season appearances, starts, substitute appearances and minutes played, with a match-by-match breakdown.</div>
         <a class="btn" href="./minutes.html" target="_top">Open Player Minutes</a>
       </div>
 
-      <div class="card">
+      <div class="card" data-access-key="ghost">
         <div class="icon">👻</div>
         <h2>Ghost Mode</h2>
         <div class="desc">Management-only read-only view of any player's portal. No player PIN needed.</div>
@@ -115,14 +115,14 @@
         <a class="btn" href="./player.html" target="_top">Open Player Portal</a>
       </div>
 
-      <div class="card">
+      <div class="card" data-access-key="player_pins">
         <div class="icon">🔐</div>
         <h2>Player PINs</h2>
         <div class="desc">Reset a player's Portal PIN and issue a temporary 4-digit PIN when they are locked out or have forgotten it.</div>
         <a class="btn" href="./pins.html" target="_top">Open Player PINs</a>
       </div>
 
-      <div class="card">
+      <div class="card" data-access-key="admin">
         <div class="icon">🛡️</div>
         <h2>Admin Panel</h2>
         <div class="desc">Grant or remove management access, choose roles, link player access, set/reset management PINs and revoke sessions.</div>
@@ -166,6 +166,20 @@ function showControlLogin(message){
   document.getElementById('loginError').textContent=message||'';
   CONTROL_TOKEN='';
 }
+function applyControlAccess(context){
+  const tiles=new Set((context?.tiles||[]).map(String));
+  const all=tiles.has('*');
+  document.querySelectorAll('[data-access-key]').forEach(card=>{
+    card.classList.toggle('hidden',!all&&!tiles.has(card.dataset.accessKey));
+  });
+}
+async function openControlCentreForToken(token){
+  const context=await pmdCall('getManagementContext',token);
+  applyControlAccess(context);
+  document.getElementById('loginWrap').classList.add('hidden');
+  document.getElementById('controlCentre').classList.remove('hidden');
+  try{await pmdCall('recordManagementPageOpen',token,'control_centre')}catch(e){}
+}
 function showControlCentre(){
   document.getElementById('loginWrap').classList.add('hidden');
   document.getElementById('controlCentre').classList.remove('hidden');
@@ -176,8 +190,7 @@ async function bootControlCentre(){
     try{
       if(await pmdCall('verifyPin',session.token)){
         CONTROL_TOKEN=session.token;
-        showControlCentre();
-        try{await pmdCall('recordManagementPageOpen',CONTROL_TOKEN,'control_centre')}catch(e){}
+        await openControlCentreForToken(CONTROL_TOKEN);
         return;
       }
     }catch(e){}
@@ -198,8 +211,7 @@ async function loginControlCentre(){
     if(!session||!session.token)throw new Error('Login failed');
     saveControlSession(session);
     CONTROL_TOKEN=session.token;
-    showControlCentre();
-    try{await pmdCall('recordManagementPageOpen',CONTROL_TOKEN,'control_centre')}catch(e){}
+    await openControlCentreForToken(CONTROL_TOKEN);
   }catch(e){
     clearControlSession();
     CONTROL_TOKEN='';
