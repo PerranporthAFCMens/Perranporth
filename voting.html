@@ -17,7 +17,7 @@ async function login(){if(BOOTING)return;const p=$('pin').value.trim();if(!p)ret
 async function openApp(){$('checkingView').classList.add('hidden');$('pinView').classList.add('hidden');$('app').classList.remove('hidden');await load()}
 const dt=s=>{const p=String(s||'').split('/');return p.length===3?new Date(+p[2],+p[1]-1,+p[0]):new Date(0)};
 function defaultMatch(ms,openId){if(openId&&ms.some(m=>m.matchId===openId))return openId;const c=ms.filter(m=>m.status==='Completed').sort((a,b)=>dt(b.date)-dt(a.date));return c[0]?.matchId||ms.find(m=>m.status==='Live')?.matchId||ms[0]?.matchId||''}
-async function load(){D=await pmdCall('getVotingAdminData',PIN);const ms=D.matches||[];selected=defaultMatch(ms,D.openMatchId);$('match').innerHTML=ms.map(m=>`<option value="${esc(m.matchId)}">${esc(m.date)} — ${esc(m.opponent)} (${esc(m.venue)})${m.status==='Completed'?' — FT':m.status==='Live'?' — LIVE':''}</option>`).join('');if(selected)$('match').value=selected;$('link').value=D.votingUrl||'https://PerranporthAFCMens.github.io/Perranporth/vote.html';status();await results()}
+async function load(){D=await pmdCall('getVotingAdminData',PIN);const ms=D.matches||[];selected=defaultMatch(ms,D.openMatchId);$('match').innerHTML=ms.map(m=>`<option value="${esc(m.matchId)}">${esc(m.date)} — ${esc(m.opponent)} (${esc(m.venue)})${m.status==='Completed'?' — FT':m.status==='Live'?' — LIVE':''}</option>`).join('');if(selected)$('match').value=selected;$('link').value=D.votingUrl||new URL('./vote.html',location.href).href;status();await results()}
 function status(){
   if(D.votingOpen){
     const openMatch=(D.matches||[]).find(x=>x.matchId===D.openMatchId);
