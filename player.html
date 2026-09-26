@@ -25,7 +25,7 @@ const q=new URLSearchParams(location.search);
 if(q.get('ghost')==='1'){
   location.replace('./player-legacy.html'+location.search);
 }else{
-  const target='https://football-pa-core-web.vercel.app/player-portal.html?team=d5bcdf95-40a2-4596-b044-e9c8bcabecbc&pin=1&legacy_host=1';
+  const target='https://footballpa.com/Perranporth/player-portal.html?team=d5bcdf95-40a2-4596-b044-e9c8bcabecbc&pin=1';
   const frame=document.getElementById('portal');
   const direct=document.getElementById('openDirect');
   direct.href=target;
